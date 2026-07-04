@@ -1,0 +1,4807 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Campo Tático</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #12181f;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    overflow-x: hidden;
+    touch-action: none;
+  }
+  #app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh;
+    height: 100dvh;
+    padding: 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+  #topbar {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    gap: 8px;
+    row-gap: 8px;
+  }
+  /* Botão "Menu" — fica na barra superior, junto aos demais controles,
+     nunca sobre o seletor de formação (flex-wrap garante isso em telas estreitas) */
+  #backToMenuBtn {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    background: #384654;
+    cursor: pointer;
+    display: none;
+    order: -1;
+  }
+  #backToMenuBtn.show { display: inline-block; }
+  #topbar select {
+    flex: 1;
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    background: #1f2a36;
+    color: #fff;
+    font-weight: bold;
+    font-size: 14px;
+    min-width: 0;
+  }
+  #saveFormationBtn, #deleteFormationBtn {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: none;
+    font-size: 16px;
+    line-height: 1;
+  }
+  #saveFormationBtn { background: #1b8a3a; }
+  #deleteFormationBtn { background: #a3352b; }
+  #resetBtn {
+    background: #52616f !important;
+  }
+  #actionsBar {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  #actionsBar button {
+    flex: 1;
+    padding: 9px 4px;
+    border-radius: 8px;
+    border: none;
+    background: #1f2a36;
+    color: #fff;
+    font-weight: bold;
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+  #createBtn { background: #1b8a3a; }
+  #listPlayersBtn { background: #2a3a4a; }
+  #benchToggleBtn { background: #52616f; }
+  #benchToggleBtn.active { background: #b8860b; }
+  #auctionBar {
+    width: 100%;
+    max-width: 480px;
+    margin-bottom: 10px;
+  }
+  #openAuctionBtn {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: none;
+    background: linear-gradient(160deg, #b8860b, #8a6508);
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+  }
+
+  /* ---------- LEILÃO ---------- */
+  #auctionOverlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 70;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+  }
+  #auctionOverlay.open { display: flex; }
+  #auctionBox {
+    background: #1a232d;
+    border-radius: 12px;
+    padding: 16px;
+    width: 94%;
+    max-width: 480px;
+    margin: 24px auto;
+    color: #fff;
+  }
+  #auctionBox h2 { margin: 0 0 10px 0; font-size: 18px; }
+  #auctionSyncStatus { font-size: 11.5px; color: #8291a0; margin-bottom: 8px; }
+  #createAuctionBtn {
+    width: 100%; padding: 10px; border-radius: 8px; border: none;
+    background: #1b8a3a; color: #fff; font-weight: bold; font-size: 13.5px; margin-bottom: 12px;
+  }
+  #auctionListItems { display: flex; flex-direction: column; gap: 10px; max-height: 62vh; overflow-y: auto; }
+  #auctionListEmpty { color: #6d7c8a; font-size: 13px; text-align: center; padding: 14px 0; }
+  #closeAuctionBtn {
+    margin-top: 12px; width: 100%; padding: 10px; border-radius: 8px;
+    border: none; background: #384654; color: #fff; font-weight: bold;
+  }
+
+  .auction-card {
+    display: flex;
+    background: #12181f;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+  }
+  .auction-card .ac-mini {
+    position: relative;
+    width: 88px;
+    min-width: 88px;
+    aspect-ratio: 3/4;
+    margin: 8px;
+    border-radius: 8px;
+    background: linear-gradient(160deg, #e8c15a, #b8860b 60%, #8a6508);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.3);
+    overflow: hidden;
+  }
+  .auction-card .ac-mini.rarity-bronze { background: linear-gradient(160deg, #c98a4b, #8a5a2b 60%, #6b4419); box-shadow: 0 3px 6px rgba(0,0,0,0.5), 0 0 0 2px #7a4a24; }
+  .auction-card .ac-mini.rarity-prata  { background: linear-gradient(160deg, #f1f4f7, #c3ccd6 60%, #9aa4af); box-shadow: 0 3px 6px rgba(0,0,0,0.5), 0 0 0 2px #ffffff; }
+  .auction-card .ac-mini.rarity-ouro   { background: linear-gradient(160deg, #ffdd6b, #d4a015 55%, #8a6508); box-shadow: 0 3px 6px rgba(0,0,0,0.5), 0 0 0 2px #ffd54a; }
+  .auction-card .ac-mini.rarity-epico  { background: linear-gradient(160deg, #d68bf0, #8a2fb8 55%, #4a1866); box-shadow: 0 3px 6px rgba(0,0,0,0.5), 0 0 0 2px #c77ee0; }
+  .auction-card .ac-mini.rarity-lendario { background: linear-gradient(160deg, #fff3c4 0%, #ffd54a 35%, #d4a017 65%, #8a6508 100%); box-shadow: 0 3px 6px rgba(0,0,0,0.5), 0 0 0 2px #ffe27a; }
+  .auction-card .ac-mini .ac-photo { position: absolute; inset: 0; background-size: cover; background-position: center top; }
+  .auction-card .ac-mini .ac-corner-ovr {
+    position: absolute; top: 2px; left: 3px; font-size: 11px; font-weight: 800; color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9);
+    z-index: 2;
+  }
+  .auction-card .ac-mini .ac-corner-pos {
+    position: absolute; top: 2px; right: 3px; font-size: 9.5px; font-weight: 800; color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9);
+    z-index: 2;
+  }
+  .auction-card .ac-mini .ac-name {
+    position: absolute; bottom: 2px; left: 0; right: 0; font-size: 8.5px; font-weight: 800;
+    text-align: center; color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    z-index: 2;
+  }
+  .auction-card .ac-info {
+    flex: 1; min-width: 0; padding: 8px 10px 8px 0;
+    display: flex; flex-direction: column; gap: 3px; justify-content: center;
+  }
+  .auction-card .ac-rarity {
+    font-weight: 800; font-size: 13px; margin-bottom: 2px;
+  }
+  .auction-card .ac-rarity.rarity-bronze { color: #c98a4b; }
+  .auction-card .ac-rarity.rarity-prata  { color: #d7dee5; }
+  .auction-card .ac-rarity.rarity-ouro   { color: #ffd54a; }
+  .auction-card .ac-rarity.rarity-epico  { color: #e35fd0; }
+  .auction-card .ac-rarity.rarity-lendario { color: #ffe27a; }
+  .auction-card .ac-line { font-size: 12.5px; color: #dfe6ec; }
+  .auction-card .ac-line b { color: #fff; }
+  .auction-card .ac-timer { font-size: 12px; color: #9fb0be; }
+  .auction-card .ac-timer.ending { color: #ff6b5e; font-weight: bold; }
+  .auction-card .ac-seller { font-size: 10.5px; color: #6d7c8a; }
+  .auction-card .ac-actions { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .auction-card .ac-bid-input {
+    width: 66px; padding: 6px 6px; border-radius: 6px; border: none;
+    background: #232f3b; color: #fff; font-size: 12px;
+  }
+  .auction-card button {
+    border: none; border-radius: 6px; padding: 6px 9px; font-size: 11.5px; font-weight: bold; color: #fff;
+  }
+  .auction-card .ac-bid-btn { background: #2a3a4a; }
+  .auction-card .ac-buynow-btn { background: #b8860b; }
+  .auction-card .ac-cancel-btn { background: #a3352b; }
+  .auction-card .ac-claim-btn { background: #1b8a3a; }
+  .auction-card .ac-status-line { font-size: 12.5px; font-weight: bold; }
+  .auction-card.sold .ac-status-line { color: #1b8a3a; }
+  .auction-card.expired .ac-status-line { color: #8291a0; }
+
+  #createAuctionOverlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65);
+    z-index: 75;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+  }
+  #createAuctionOverlay.open { display: flex; }
+  #createAuctionBox {
+    background: #1a232d;
+    border-radius: 12px;
+    padding: 16px;
+    width: 92%;
+    max-width: 440px;
+    margin: 30px auto;
+    color: #fff;
+  }
+  #createAuctionBox h2 { margin: 0 0 12px 0; font-size: 17px; }
+  #createAuctionBox label { display: block; font-size: 12.5px; color: #9fb0be; margin: 10px 0 4px; }
+  #createAuctionBox select, #createAuctionBox input {
+    width: 100%; padding: 9px 10px; border-radius: 8px; border: none;
+    background: #12181f; color: #fff; font-size: 14px;
+  }
+  #createAuctionBox .caf-actions { display: flex; gap: 8px; margin-top: 16px; }
+  #createAuctionBox .caf-actions button {
+    flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: bold; color: #fff;
+  }
+  #submitAuctionBtn { background: #1b8a3a; }
+  #cancelCreateAuctionBtn { background: #384654; }
+  #playersListOverlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 60;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+  }
+  #playersListOverlay.open { display: flex; }
+  #playersListBox {
+    background: #1a232d;
+    border-radius: 12px;
+    padding: 16px;
+    width: 92%;
+    max-width: 460px;
+    margin: 30px auto;
+    color: #fff;
+  }
+  #playersListBox h2 { margin: 0 0 10px 0; font-size: 18px; }
+  #playersSearchInput {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: none;
+    background: #12181f;
+    color: #fff;
+    margin-bottom: 10px;
+    font-size: 14px;
+  }
+  #playersListCount { color: #8291a0; font-size: 12px; margin-bottom: 8px; }
+  #playersListItems { display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow-y: auto; }
+  .player-row {
+    display: flex; align-items: center; gap: 10px;
+    background: #232f3b; border-radius: 10px; padding: 8px 10px;
+  }
+  .player-row img {
+    width: 40px; height: 40px; border-radius: 8px; object-fit: cover;
+    background: #12181f; flex-shrink: 0;
+  }
+  .player-row .pr-info { flex: 1; min-width: 0; }
+  .player-row .pr-name { font-weight: bold; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player-row .pr-meta { font-size: 11.5px; color: #8291a0; }
+  .player-row .pr-edit {
+    border: none; border-radius: 8px; padding: 7px 10px;
+    background: #2a3a4a; color: #fff; font-size: 12px; flex-shrink: 0;
+  }
+  #playersListEmpty { color: #6d7c8a; font-size: 13px; text-align: center; padding: 14px 0; }
+  #closePlayersListBtn {
+    margin-top: 12px; width: 100%; padding: 10px; border-radius: 8px;
+    border: none; background: #384654; color: #fff; font-weight: bold;
+  }
+  #field-wrapper {
+    position: relative;
+  }
+  #field {
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        #2e7d32 0%,
+        #2e7d32 10%,
+        #33862f 10%,
+        #33862f 20%
+      );
+    box-shadow: 0 0 0 4px #0a3d12, 0 8px 20px rgba(0,0,0,0.6);
+  }
+  /* =========================================================
+     MARCAÇÕES OFICIAIS DO CAMPO — desenhadas via SVG (proporções
+     reais de um campo de futebol: 68m x 105m). Usar SVG com
+     viewBox fixo + preserveAspectRatio garante que todas as
+     linhas, o círculo central e os arcos fiquem sempre com as
+     proporções corretas e perfeitamente redondos, em qualquer
+     tamanho de tela (celular ou desktop), sem depender do
+     formato (largura x altura) do elemento #field na página.
+     ========================================================= */
+  .pitch-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+  /* Fora da partida: mostra só a metade do campo usada para montar o time
+     (com a meia-lua do círculo central virada pra dentro, como um "D") */
+  body.match-mode #pitchHalfSvg { display: none; }
+
+  /* =========================================================
+     CAMPO INTEIRO NA PARTIDA — o SVG completo (com as duas
+     grandes áreas, os dois gols e o círculo central inteiro)
+     só aparece durante a partida. Fora da partida o campo
+     permanece exatamente como era (tela de escalação mostra só
+     a metade usada para montar o time).
+     ========================================================= */
+  .match-only{ display:none; }
+  body.match-mode .match-only{ display:block; }
+
+  .zone {
+    position: absolute;
+    width: 4px; height: 4px;
+    pointer-events: none;
+  }
+
+  .card {
+    position: absolute;
+    width: 17%;
+    aspect-ratio: 3/4;
+    background: linear-gradient(160deg, #e8c15a, #b8860b 60%, #8a6508);
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.3);
+    padding: 3px 2px;
+    transform: translate(-50%, -50%);
+    transition: box-shadow 0.15s ease;
+    z-index: 5;
+    cursor: grab;
+    touch-action: none;
+    -ms-touch-action: none;
+    overflow: hidden;
+  }
+  /* raridade automática por overall: bronze < 90, prata 90-99, ouro 100-104, épico 105-109, lendário 110+ */
+  .card.rarity-bronze {
+    background: linear-gradient(160deg, #c98a4b, #8a5a2b 60%, #6b4419);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.3), 0 0 0 2px #7a4a24;
+  }
+  .card.rarity-prata {
+    background: linear-gradient(160deg, #f1f4f7, #c3ccd6 60%, #9aa4af);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.5), 0 0 0 2px #ffffff, 0 0 10px rgba(255,255,255,0.5);
+  }
+  .card.rarity-ouro {
+    background: linear-gradient(160deg, #ffdd6b, #d4a015 55%, #8a6508);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.4), 0 0 0 2px #ffd54a, 0 0 12px rgba(255,213,74,0.65);
+  }
+  .card.rarity-epico {
+    background: linear-gradient(160deg, #d68bf0, #8a2fb8 55%, #4a1866);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.35), 0 0 0 2px #c77ee0, 0 0 16px rgba(199,126,224,0.75);
+  }
+  .card.rarity-lendario {
+    background: linear-gradient(160deg, #fff3c4 0%, #ffd54a 35%, #d4a017 65%, #8a6508 100%);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.6), 0 0 0 2px #ffe27a, 0 0 10px rgba(255,213,74,0.9), 0 0 26px rgba(255,180,20,0.65);
+    animation: legendaryGlow 2.6s ease-in-out infinite;
+  }
+  /* mantém o "pop" ao mover a carta funcionando junto com o glow contínuo do lendário */
+  .card.pop.rarity-lendario {
+    animation: pop 0.25s ease, legendaryGlow 2.6s ease-in-out infinite;
+  }
+  @keyframes legendaryGlow {
+    0%, 100% {
+      box-shadow: 0 4px 14px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.6), 0 0 0 2px #ffe27a, 0 0 10px rgba(255,213,74,0.75), 0 0 20px rgba(255,180,20,0.5);
+    }
+    50% {
+      box-shadow: 0 4px 14px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.6), 0 0 0 2px #fff3c4, 0 0 20px rgba(255,213,74,1), 0 0 40px rgba(255,180,20,0.9);
+    }
+  }
+
+  /* glow fixo mais intenso para épico/lendário (sem animar a própria carta, evita conflito com o "pop" ao mover) */
+
+  .card .corner {
+    position: absolute;
+    top: 3px; left: 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    z-index: 2;
+  }
+  .card.dragging {
+    z-index: 50;
+    box-shadow: 0 10px 22px rgba(0,0,0,0.7);
+    cursor: grabbing;
+    transition: none !important;
+  }
+  .card.snap {
+    transition: left 0.22s cubic-bezier(.34,1.56,.64,1), top 0.22s cubic-bezier(.34,1.56,.64,1);
+  }
+  .card .ovr {
+    position: relative;
+    z-index: 2;
+    font-weight: 800;
+    font-size: clamp(7px, 2.1vw, 10px);
+    color: #1c1c1c;
+    line-height: 1;
+  }
+  .card .pos {
+    position: absolute;
+    top: 3px; right: 4px;
+    font-weight: 700;
+    font-size: clamp(7px, 2.2vw, 10px);
+    color: #3a2a00;
+    line-height: 1.3;
+    z-index: 2;
+  }
+  .card .name {
+    position: absolute;
+    left: 0; right: 0; bottom: 3px;
+    font-size: clamp(6px, 2vw, 9px);
+    font-weight: 700;
+    color: #1c1c1c;
+    text-align: center;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+    z-index: 2;
+  }
+
+  @keyframes pop {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    40% { transform: translate(-50%, -50%) scale(1.18); }
+    100% { transform: translate(-50%, -50%) scale(1); }
+  }
+  .pop { animation: pop 0.25s ease; }
+
+  /* mesma animação, mas sem o translate(-50%,-50%) do campo — usada nas cartas do banco,
+     que ficam em fluxo normal (flex) e não devem ser deslocadas do próprio eixo */
+  @keyframes benchPop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+  .bench-pop { animation: benchPop 0.25s ease; }
+
+  .card.locked {
+    cursor: default;
+    width: 14%;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.3), 0 0 0 2px rgba(255,255,255,0.4);
+  }
+
+  /* ---------- BANCO DE RESERVAS (coluna lateral) ---------- */
+  #fieldRow {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    max-width: 480px;
+    flex: 1;
+    min-height: 0;
+  }
+  #field-wrapper {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    align-self: stretch;
+    transition: flex-basis 0.2s ease;
+  }
+  #benchWrapper {
+    display: none;
+    flex-direction: column;
+    width: 78px;
+    flex: 0 0 78px;
+    min-height: 0;
+    overflow: hidden;
+  }
+  #benchWrapper.open {
+    display: flex;
+  }
+  #benchColLabel {
+    color: #8291a0;
+    font-size: 10px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 6px;
+  }
+  #benchFilterSelect {
+    width: 100%;
+    margin-bottom: 6px;
+    padding: 4px 2px;
+    border-radius: 6px;
+    border: none;
+    background: #1f2a36;
+    color: #fff;
+    font-size: 9.5px;
+    font-weight: bold;
+    text-align: center;
+    text-align-last: center;
+  }
+  #benchList {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    gap: 8px;
+    padding: 6px;
+    flex: 1;
+    min-height: 0;
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 10px;
+  }
+  #benchEmpty {
+    color: #5c6a77;
+    font-size: 10.5px;
+    padding: 10px 4px;
+    width: 100%;
+    text-align: center;
+  }
+  .card.bench {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    width: 100%;
+    flex: 0 0 auto;
+    z-index: auto;
+    touch-action: pan-y;
+  }
+  #benchWrapper.bench-drop-hover #benchList {
+    border-color: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.08);
+  }
+  #benchToggleBtn {
+    position: relative;
+  }
+  #benchToggleCount {
+    background: #b8860b;
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+    border-radius: 10px;
+    padding: 1px 6px;
+    margin-left: 5px;
+  }
+
+  #zonePreview {
+    position: absolute;
+    border: 2px dashed rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.16);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 3;
+    opacity: 0;
+    transition: left 0.06s linear, top 0.06s linear, width 0.06s linear, height 0.06s linear, opacity 0.12s ease;
+    border-radius: 6px;
+  }
+  #zonePreview.active { opacity: 1; }
+  #zonePreview span {
+    font-size: clamp(11px, 3.6vw, 16px);
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 0 4px rgba(0,0,0,0.8);
+  }
+  .card.swap-target {
+    box-shadow: 0 0 0 3px #ffffff, 0 6px 14px rgba(0,0,0,0.6) !important;
+  }
+  @keyframes selectPulse {
+    0%   { box-shadow: 0 0 0 3px #33e0ff, 0 0 10px rgba(51,224,255,0.7), 0 6px 14px rgba(0,0,0,0.6); transform: translate(-50%, -50%) scale(1); }
+    50%  { box-shadow: 0 0 0 5px #33e0ff, 0 0 22px rgba(51,224,255,1), 0 6px 14px rgba(0,0,0,0.6); transform: translate(-50%, -50%) scale(1.07); }
+    100% { box-shadow: 0 0 0 3px #33e0ff, 0 0 10px rgba(51,224,255,0.7), 0 6px 14px rgba(0,0,0,0.6); transform: translate(-50%, -50%) scale(1); }
+  }
+  .card.selected-for-swap {
+    animation: selectPulse 0.9s ease-in-out infinite;
+    z-index: 20;
+  }
+  .card.bench.selected-for-swap {
+    animation-name: selectPulseBench;
+  }
+  @keyframes selectPulseBench {
+    0%   { box-shadow: 0 0 0 3px #33e0ff, 0 0 10px rgba(51,224,255,0.7), 0 4px 8px rgba(0,0,0,0.5); transform: scale(1); }
+    50%  { box-shadow: 0 0 0 5px #33e0ff, 0 0 22px rgba(51,224,255,1), 0 4px 8px rgba(0,0,0,0.5); transform: scale(1.07); }
+    100% { box-shadow: 0 0 0 3px #33e0ff, 0 0 10px rgba(51,224,255,0.7), 0 4px 8px rgba(0,0,0,0.5); transform: scale(1); }
+  }
+
+  #hint {
+    display: none;
+    color: #9fb0be;
+    font-size: 12px;
+    text-align: center;
+    margin-top: 14px;
+    max-width: 480px;
+  }
+
+  #createBtn {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: none;
+    background: #1b8a3a;
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* ---------- MODAL ---------- */
+  #modalOverlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+  }
+  #modalOverlay.open { display: flex; }
+  #modalBox {
+    background: #1c2530;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 380px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 16px;
+    color: #fff;
+  }
+  #modalBox h2 {
+    margin: 0 0 12px 0;
+    font-size: 17px;
+    text-align: center;
+  }
+  #storageInfo {
+    font-size: 11px;
+    color: #9fb0be;
+    text-align: center;
+    margin-bottom: 12px;
+    padding: 6px 8px;
+    background: #12181f;
+    border-radius: 6px;
+  }
+  #storageInfo .bar-track {
+    height: 5px;
+    background: #2a3540;
+    border-radius: 4px;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+  #storageInfo .bar-fill {
+    height: 100%;
+    background: #1b8a3a;
+    border-radius: 4px;
+  }
+  #storageInfo .bar-fill.warn { background: #d6a92c; }
+  #storageInfo .bar-fill.danger { background: #a3352b; }
+  .field-group { margin-bottom: 12px; }
+  .field-group label {
+    display: block;
+    font-size: 12px;
+    color: #9fb0be;
+    margin-bottom: 4px;
+    font-weight: bold;
+  }
+  .field-group input[type="text"],
+  .field-group input[type="number"] {
+    width: 100%;
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    background: #12181f;
+    color: #fff;
+    font-size: 14px;
+  }
+  .field-group input[type="file"] {
+    width: 100%;
+    font-size: 12px;
+    color: #cfd8e0;
+  }
+  #posChecks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  #posChecks label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #12181f;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: normal;
+    color: #fff;
+    cursor: pointer;
+  }
+  #posChecks input { margin: 0; }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .modal-actions button {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    font-weight: bold;
+    font-size: 14px;
+  }
+  #saveCardBtn { background: #1b8a3a; color: #fff; }
+  #cancelCardBtn { background: #384654; color: #fff; }
+  #deleteCardBtn { background: #a3352b; color: #fff; }
+  .preview-thumb {
+    width: 100%;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-top: 6px;
+    display: none;
+  }
+
+  /* card photo styling */
+  .card .photo-bg {
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    background-size: cover;
+    background-position: top center;
+    z-index: 0;
+  }
+  .card .badge-img {
+    width: clamp(10px, 5.5vw, 16px);
+    aspect-ratio: 1/1;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
+    margin-top: 1px;
+  }
+  .card .name-strip {
+    display: none;
+  }
+
+  #modalOverlay, #modalOverlay * {
+    touch-action: auto;
+    user-select: auto;
+    -webkit-tap-highlight-color: initial;
+  }
+
+  .card.has-photo .ovr,
+  .card.has-photo .pos,
+  .card.has-photo .name {
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9);
+  }
+  .card.has-photo .ovr.ovr-drop {
+    color: #ff6b5e;
+  }
+
+
+  .hidden-file {
+    position: absolute;
+    width: 1px; height: 1px;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .file-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    background: linear-gradient(160deg, #2f80e0, #1b5fb8);
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  }
+  .file-btn:active { filter: brightness(0.9); }
+  .file-name {
+    display: block;
+    font-size: 11px;
+    color: #9fb0be;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  /* ---------- CONTROLES DE AMBIENTE (tema + música) ---------- */
+  #envBar {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  #envBar select {
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    background: #1f2a36;
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+  }
+  #themeSelect { flex: 1; }
+  #musicPickBtn, #musicPlayBtn {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: none;
+    background: #2a3a4a;
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  #musicPlayBtn.playing { background: linear-gradient(160deg, #2f9e44, #1b6e2b); }
+  #musicTrackLabel {
+    width: 100%;
+    max-width: 480px;
+    display: none;
+    font-size: 11px;
+    color: #9fb0be;
+    margin: -4px 0 10px 2px;
+  }
+
+  /* ---------- TEMAS DE CAMPO ---------- */
+  #field.theme-dia {
+    background:
+      repeating-linear-gradient(to bottom, #2e7d32 0%, #2e7d32 10%, #33862f 10%, #33862f 20%);
+  }
+  #field.theme-noite {
+    background:
+      repeating-linear-gradient(to bottom, #14331a 0%, #14331a 10%, #183c1e 10%, #183c1e 20%);
+    box-shadow: 0 0 0 4px #071c09, 0 0 40px 6px rgba(120,180,255,0.15), 0 8px 20px rgba(0,0,0,0.7);
+  }
+  #field.theme-noite::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 20% 0%, rgba(180,210,255,0.12), transparent 55%),
+                radial-gradient(ellipse at 80% 0%, rgba(180,210,255,0.12), transparent 55%),
+                rgba(0,10,20,0.35);
+    pointer-events: none;
+    z-index: 1;
+  }
+  #field.theme-chuva {
+    background:
+      repeating-linear-gradient(to bottom, #24592a 0%, #24592a 10%, #295f2c 10%, #295f2c 20%);
+  }
+  #field.theme-chuva::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(to bottom, rgba(20,30,45,0.35), rgba(10,15,25,0.5));
+    pointer-events: none;
+    z-index: 1;
+  }
+  #rainLayer {
+    position: absolute; inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 2;
+    display: none;
+  }
+  #field.theme-chuva #rainLayer { display: block; }
+  #rainLayer .drop {
+    position: absolute;
+    width: 1.5px;
+    height: 6%;
+    background: linear-gradient(to bottom, rgba(210,230,255,0), rgba(210,230,255,0.6));
+    animation-name: rainFall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+  /* anima via "top" (relativo ao campo inteiro), não "transform" (que seria
+     relativo só ao tamanho da gota) — assim a gota realmente atravessa o campo
+     inteiro, de cima a baixo, e não só uma fração dele */
+  @keyframes rainFall {
+    0%   { top: -10%; opacity: 0; }
+    12%  { opacity: 1; }
+    88%  { opacity: 0.7; }
+    100% { top: 110%; opacity: 0; }
+  }
+
+  /* ---------- REMOÇÃO DE FUNDO DA FOTO ---------- */
+  #bgRemoveRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  #bgRemoveBtn {
+    flex: 1;
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    background: linear-gradient(160deg, #8a2fb8, #5a1b7a);
+    color: #fff;
+    font-weight: bold;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  #bgTolerance {
+    width: 70px;
+  }
+  #bgRemoveHint {
+    font-size: 10.5px;
+    color: #6d7c8a;
+    margin-top: 4px;
+    display: block;
+  }
+  .checker-bg {
+    background-image:
+      linear-gradient(45deg, #444 25%, transparent 25%),
+      linear-gradient(-45deg, #444 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #444 75%),
+      linear-gradient(-45deg, transparent 75%, #444 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+    background-color: #2a2a2a;
+  }
+
+  /* ---------- MODAL DE MÚSICAS (múltiplas faixas + recorte) ---------- */
+  #musicModalOverlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+    touch-action: auto;
+  }
+  #musicModalOverlay.open { display: flex; }
+  #musicModalOverlay, #musicModalOverlay * {
+    touch-action: auto;
+    user-select: auto;
+  }
+  #musicModalBox {
+    background: #1c2530;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 380px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 16px;
+    color: #fff;
+  }
+  #musicModalBox h2 { margin: 0 0 12px 0; font-size: 17px; text-align: center; }
+  #addTrackBtn {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; padding: 10px; margin-bottom: 12px;
+    border-radius: 8px; border: none;
+    background: linear-gradient(160deg, #2f80e0, #1b5fb8);
+    color: #fff; font-weight: bold; font-size: 13px; cursor: pointer;
+  }
+  #trimEditor {
+    background: #12181f;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 14px;
+  }
+  #trimEditor input[type="range"] { width: 100%; }
+  #trimEditor input[type="text"] {
+    width: 100%; padding: 8px; border-radius: 8px; border: none;
+    background: #1c2530; color: #fff; font-size: 13px;
+  }
+  #trackList { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .track-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 8px;
+    background: #12181f;
+    font-size: 12.5px;
+  }
+  .track-item.active { box-shadow: 0 0 0 2px #1b8a3a; }
+  .track-item .track-select {
+    border: none; border-radius: 50%;
+    width: 30px; height: 30px; flex-shrink: 0;
+    background: #2a3a4a; color: #fff; font-size: 13px; cursor: pointer;
+  }
+  .track-item.active .track-select { background: #1b8a3a; }
+  .track-item .track-info { flex: 1; min-width: 0; color: #dfe6ec; }
+  .track-item .track-info .t-name {
+    font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .track-item .track-info .t-range { font-size: 10.5px; color: #6d7c8a; }
+  .track-item .track-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .track-item .track-actions button {
+    border: none; border-radius: 6px; padding: 5px 7px;
+    background: #2a3a4a; color: #fff; font-size: 12px; cursor: pointer;
+  }
+  #trackListEmpty { color: #6d7c8a; font-size: 12px; text-align: center; padding: 10px 0; }
+
+  /* =========================================================
+     MENU INICIAL — CAMADA ADICIONADA (não altera estilos acima)
+     ========================================================= */
+  :root{
+    --menu-accent:#2f9e44;
+    --menu-accent2:#1b6e2b;
+  }
+  body.menu-active #app{ display:none !important; }
+
+  .menu-screen{
+    position:fixed; inset:0; z-index:5000;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at center, #10171f 0%, #05080b 100%);
+    color:#fff; padding:24px; box-sizing:border-box; overflow-y:auto;
+  }
+  .menu-screen.open{ display:flex; }
+
+  @keyframes menuFadeIn{ from{ opacity:0; transform:scale(0.97);} to{ opacity:1; transform:scale(1);} }
+  .menu-screen.open .menu-inner{ animation: menuFadeIn 0.45s ease; }
+
+  .menu-inner{ width:100%; max-width:420px; display:flex; flex-direction:column; align-items:center; gap:14px; }
+
+  .menu-logo{ display:flex; flex-direction:column; align-items:center; margin-bottom:10px; user-select:none; }
+  .menu-logo .menu-logo-icon{ font-size:54px; line-height:1; filter: drop-shadow(0 0 14px rgba(47,158,68,0.55)); }
+  .menu-logo .menu-logo-title{
+    font-size:32px; font-weight:900; letter-spacing:2px; margin-top:6px;
+    background:linear-gradient(160deg,#ffffff,#8fe3a3);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .menu-logo .menu-logo-sub{ font-size:12px; letter-spacing:4px; color:#8aa0ad; margin-top:2px; }
+
+  .menu-btn{
+    width:100%; padding:16px 20px; font-size:16px; font-weight:700; color:#fff;
+    background:linear-gradient(160deg,#1c2733,#101820);
+    border:1px solid #2a3946; border-radius:14px; cursor:pointer;
+    display:flex; align-items:center; gap:12px; text-align:left;
+    transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  }
+  .menu-btn .menu-btn-icon{ font-size:20px; width:26px; text-align:center; }
+  .menu-btn:hover{
+    border-color: var(--menu-accent);
+    background:linear-gradient(160deg,#22303d,#141d26);
+    box-shadow:0 4px 18px rgba(47,158,68,0.25);
+    transform:translateY(-2px);
+  }
+  .menu-btn:active{ transform:scale(0.96); }
+  .menu-btn.menu-btn-primary{
+    background:linear-gradient(160deg, var(--menu-accent), var(--menu-accent2));
+    border-color: var(--menu-accent2);
+  }
+  .menu-btn.menu-btn-primary:hover{ box-shadow:0 4px 22px rgba(47,158,68,0.5); }
+  .menu-btn.menu-btn-disabled{ opacity:0.45; cursor:not-allowed; }
+  .menu-btn.menu-btn-disabled:hover{ transform:none; box-shadow:none; border-color:#2a3946; }
+
+  .menu-screen-title{ font-size:20px; font-weight:800; margin-bottom:6px; letter-spacing:1px; }
+
+  /* Botão "Continuar para Partida" — fica no fluxo normal, ABAIXO do campo/banco/hint,
+     ocupando toda a largura disponível (nunca sobrepõe campo, formação, cartas ou banco). */
+  #continueToMatchBtn{
+    width:100%; max-width:480px;
+    margin-top:12px; margin-bottom:4px;
+    padding:14px 20px; font-size:15px; font-weight:800; color:#fff;
+    background:linear-gradient(160deg, var(--menu-accent), var(--menu-accent2));
+    border:none; border-radius:14px; box-shadow:0 6px 20px rgba(0,0,0,0.4);
+    cursor:pointer; display:none; align-items:center; justify-content:center; gap:8px;
+    transition: transform 0.15s ease;
+    flex-shrink:0;
+  }
+  #continueToMatchBtn.show{ display:flex; }
+  #continueToMatchBtn:active{ transform:scale(0.97); }
+
+  .stats-grid{ width:100%; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0; }
+  .stat-card{ background:#141d26; border:1px solid #2a3946; border-radius:12px; padding:14px; text-align:center; }
+  .stat-card .stat-value{ font-size:24px; font-weight:900; color:#8fe3a3; }
+  .stat-card .stat-label{ font-size:11px; color:#8aa0ad; margin-top:4px; letter-spacing:1px; text-transform:uppercase; }
+
+  .settings-row{ width:100%; background:#141d26; border:1px solid #2a3946; border-radius:12px; padding:14px; margin-bottom:10px; }
+  .settings-row label{ display:block; font-size:12px; color:#8aa0ad; margin-bottom:8px; letter-spacing:1px; text-transform:uppercase; }
+  .settings-row input[type="range"]{ width:100%; }
+  .settings-embed-slot{ display:flex; flex-wrap:wrap; gap:8px; }
+
+  .menu-btn-danger{ background:linear-gradient(160deg,#a22,#600); border-color:#a22; }
+  .menu-btn-danger:hover{ box-shadow:0 4px 18px rgba(200,40,40,0.35); }
+
+  /* =========================================================
+     MOTOR DE PARTIDA — CAMADA ADICIONADA
+     Reutiliza #field e a classe .card já existentes; não recria
+     campo, escalação ou cartas. Apenas anima/posiciona elementos.
+     ========================================================= */
+
+  /* Enquanto a partida está ativa, esconde os controles de administração
+     do elenco (sem removê-los do DOM) para não sobrepor o campo */
+  body.match-mode #topbar,
+  body.match-mode #actionsBar,
+  body.match-mode #auctionBar,
+  body.match-mode #envBar,
+  body.match-mode #musicTrackLabel,
+  body.match-mode #benchWrapper,
+  body.match-mode #hint,
+  body.match-mode #continueToMatchBtn{
+    display: none !important;
+  }
+  body.match-mode #fieldRow{ width:100%; max-width:520px; }
+  body.match-mode #field-wrapper{ width:100%; }
+
+  /* Cartas da IA reaproveitam a MESMA classe .card (mesmo tamanho, formato e
+     comportamento visual); só o gradiente muda para diferenciar o time */
+  .card.ai-card{
+    background: linear-gradient(160deg, #6aa9e8, #2f5fa3 60%, #1f3f73);
+  }
+  .card.ai-card .ovr{ color:#fff; }
+
+  /* Todas as cartas em campo, durante a partida, se movem suavemente */
+  body.match-mode #field .card{
+    transition: left 0.9s cubic-bezier(.4,.2,.2,1), top 0.9s cubic-bezier(.4,.2,.2,1),
+                transform 0.35s ease, box-shadow 0.35s ease;
+    pointer-events: none;
+  }
+
+  /* Posse de bola: carta aumenta, brilha em dourado e ganha um círculo luminoso na base */
+  body.match-mode #field .card.has-ball{
+    z-index: 20;
+    box-shadow: 0 0 0 3px #ffd54a, 0 0 22px 6px rgba(255,213,74,0.85);
+  }
+  body.match-mode #field .card.has-ball .card-possession-glow{
+    display:block;
+  }
+  .card-possession-glow{
+    display:none;
+    position:absolute;
+    left:50%; bottom:-6%;
+    width:70%; height:14%;
+    transform: translateX(-50%);
+    border-radius:50%;
+    background: radial-gradient(closest-side, rgba(255,213,74,0.95), rgba(255,213,74,0));
+    pointer-events:none;
+    z-index:-1;
+  }
+
+  /* Chute: aumento rápido + inclinação para frente */
+  body.match-mode #field .card.kicking{
+    transition: left 0.35s ease, top 0.35s ease, transform 0.18s ease, box-shadow 0.2s ease;
+  }
+
+  /* Bola independente */
+  #matchBall{
+    position:absolute;
+    width:4.2%;
+    aspect-ratio:1/1;
+    border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #fff, #d8d8d8 55%, #9a9a9a 100%);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    z-index:25;
+    transform: translate(-50%,-50%);
+    transition: left 0.5s ease, top 0.5s ease;
+    display:none;
+    pointer-events:none;
+  }
+  body.match-mode #matchBall{ display:block; }
+
+  /* Placar e cronômetro simples, dentro do fluxo, acima do campo */
+  #matchScoreboard{
+    display:none;
+    width:100%; max-width:520px;
+    justify-content:space-between;
+    align-items:center;
+    background:#141d26;
+    border:1px solid #2a3946;
+    border-radius:10px;
+    padding:8px 14px;
+    color:#fff;
+    font-weight:800;
+    font-size:14px;
+    margin-bottom:8px;
+  }
+  body.match-mode #matchScoreboard{ display:flex; }
+  #matchScoreboard .ms-time{ color:#8aa0ad; font-weight:700; font-size:13px; }
+
+  /* Narração — fica no FLUXO normal, abaixo do campo, nunca sobre ele */
+  #matchNarration{
+    display:none;
+    width:100%; max-width:520px;
+    min-height:20px;
+    margin-top:10px;
+    padding:10px 14px;
+    background:#141d26;
+    border:1px solid #2a3946;
+    border-radius:10px;
+    color:#cfe8d6;
+    font-size:13px;
+    font-weight:600;
+    text-align:center;
+  }
+  body.match-mode #matchNarration{ display:block; }
+
+  /* Tremor de câmera no gol */
+  @keyframes fieldShake{
+    0%,100%{ transform: translate(0,0); }
+    20%{ transform: translate(-6px,3px); }
+    40%{ transform: translate(5px,-4px); }
+    60%{ transform: translate(-4px,4px); }
+    80%{ transform: translate(4px,-2px); }
+  }
+  #field-wrapper.shake{ animation: fieldShake 0.5s ease; }
+
+  /* Overlay de gol (exceção permitida: mensagem central que precisa cobrir a tela por instantes) */
+  .goal-overlay{
+    position:fixed; inset:0; z-index:6000;
+    display:none; align-items:center; justify-content:center;
+    background:rgba(5,8,11,0.88);
+    overflow:hidden;
+  }
+  .goal-overlay.show{ display:flex; }
+  .goal-overlay-inner{
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    animation: goalPop 0.5s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes goalPop{
+    0%{ transform:scale(0.4); opacity:0; }
+    60%{ transform:scale(1.12); opacity:1; }
+    100%{ transform:scale(1); opacity:1; }
+  }
+  .goal-emoji{ font-size:46px; }
+  .goal-text{
+    font-size:40px; font-weight:900; color:#ffd54a;
+    text-shadow:0 0 18px rgba(255,213,74,0.85);
+    letter-spacing:2px;
+  }
+  .goal-scorer{ font-size:22px; font-weight:800; color:#fff; letter-spacing:1px; }
+  .goal-minute{ font-size:14px; color:#8aa0ad; font-weight:700; }
+
+  #confettiLayer{ position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+  .confetti-piece{
+    position:absolute; top:-10%;
+    width:8px; height:14px;
+    opacity:0.95;
+    animation-name: confettiFall;
+    animation-timing-function: linear;
+    animation-iteration-count:1;
+  }
+  @keyframes confettiFall{
+    0%{ transform: translateY(0) rotate(0deg); }
+    100%{ transform: translateY(120vh) rotate(540deg); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <button type="button" id="backToMenuBtn">⬅ Menu</button>
+    <select id="formationSelect"></select>
+    <button id="saveFormationBtn" title="Salvar formação atual">Salvar</button>
+    <button id="deleteFormationBtn" title="Excluir formação selecionada">Excluir</button>
+  </div>
+  <div id="actionsBar">
+    <button id="createBtn">+ Jogador</button>
+    <button id="listPlayersBtn">Jogadores</button>
+    <button id="benchToggleBtn">Banco<span id="benchToggleCount" style="display:none;"></span></button>
+    <button id="resetBtn">Resetar</button>
+  </div>
+  <div id="auctionBar">
+    <button id="openAuctionBtn">Leilão</button>
+  </div>
+  <div id="envBar">
+    <select id="themeSelect">
+      <option value="dia">Dia</option>
+      <option value="noite">Noite</option>
+      <option value="chuva">Chuva</option>
+    </select>
+    <button id="musicPickBtn">Músicas</button>
+    <button id="musicPlayBtn" style="display:none;">Tocar</button>
+  </div>
+  <div id="musicTrackLabel"></div>
+
+  <!-- Placar da partida — visível apenas em modo partida, no fluxo normal -->
+  <div id="matchScoreboard">
+    <span id="msTeamHome">Meu Time</span>
+    <span><span id="msScoreHome">0</span> x <span id="msScoreAway">0</span></span>
+    <span id="msTeamAway">IA</span>
+    <span class="ms-time" id="msClock">0'</span>
+  </div>
+
+  <div id="fieldRow">
+    <div id="field-wrapper">
+      <div id="field" class="theme-dia">
+        <!-- ---------- METADE DO CAMPO (tela de escalação) ----------
+             viewBox em metros reais (68m de largura x 52.5m de profundidade,
+             + 2m de gol). preserveAspectRatio garante proporções corretas
+             e um círculo perfeitamente redondo em qualquer tela. -->
+        <svg id="pitchHalfSvg" class="pitch-svg" viewBox="0 0 68 54.5" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <clipPath id="clipAboveBoxHalf"><rect x="0" y="0" width="68" height="36"/></clipPath>
+            <clipPath id="clipFieldHalf"><rect x="0" y="0" width="68" height="52.5"/></clipPath>
+          </defs>
+          <g fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="0.35">
+            <!-- lateral esquerda, lateral direita, linha de fundo (gol) e linha do meio-campo -->
+            <rect x="0" y="0" width="68" height="52.5"/>
+            <!-- grande área -->
+            <rect x="13.84" y="36" width="40.32" height="16.5"/>
+            <!-- pequena área -->
+            <rect x="24.84" y="47" width="18.32" height="5.5"/>
+            <!-- meia-lua do círculo central (virada para dentro do campo) -->
+            <circle cx="34" cy="0" r="9.15"/>
+            <!-- arco da grande área (D) -->
+            <g clip-path="url(#clipAboveBoxHalf)"><circle cx="34" cy="41.5" r="9.15"/></g>
+            <!-- escanteios (quarto de círculo) -->
+            <g clip-path="url(#clipFieldHalf)">
+              <circle cx="0" cy="52.5" r="1"/>
+              <circle cx="68" cy="52.5" r="1"/>
+            </g>
+            <!-- gol centralizado -->
+            <path d="M30.34 52.5 L30.34 54.5 L37.66 54.5 L37.66 52.5" stroke="rgba(255,255,255,0.95)"/>
+          </g>
+          <g fill="rgba(255,255,255,0.95)">
+            <!-- marca do pênalti -->
+            <circle cx="34" cy="41.5" r="0.35"/>
+            <!-- marca do centro (na linha do meio-campo) -->
+            <circle cx="34" cy="0" r="0.35"/>
+          </g>
+        </svg>
+
+        <!-- ---------- CAMPO INTEIRO (só aparece durante a partida) ----------
+             viewBox 68m x 105m (+2m de gol em cada lado). -->
+        <svg id="pitchFullSvg" class="pitch-svg match-only" viewBox="0 -2 68 109" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <clipPath id="clipFieldFull"><rect x="0" y="0" width="68" height="105"/></clipPath>
+            <clipPath id="clipBelowTopBox"><rect x="0" y="16.5" width="68" height="200"/></clipPath>
+            <clipPath id="clipAboveBottomBox"><rect x="0" y="-10" width="68" height="98.5"/></clipPath>
+          </defs>
+          <g fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="0.35">
+            <!-- laterais e linhas de fundo dos dois gols -->
+            <rect x="0" y="0" width="68" height="105"/>
+            <!-- linha do meio-campo atravessando todo o campo -->
+            <line x1="0" y1="52.5" x2="68" y2="52.5"/>
+            <!-- círculo central completo e perfeitamente redondo -->
+            <circle cx="34" cy="52.5" r="9.15"/>
+            <!-- grande área de cima -->
+            <rect x="13.84" y="0" width="40.32" height="16.5"/>
+            <!-- pequena área de cima -->
+            <rect x="24.84" y="0" width="18.32" height="5.5"/>
+            <!-- grande área de baixo -->
+            <rect x="13.84" y="88.5" width="40.32" height="16.5"/>
+            <!-- pequena área de baixo -->
+            <rect x="24.84" y="99.5" width="18.32" height="5.5"/>
+            <!-- arco da grande área de cima -->
+            <g clip-path="url(#clipBelowTopBox)"><circle cx="34" cy="11" r="9.15"/></g>
+            <!-- arco da grande área de baixo -->
+            <g clip-path="url(#clipAboveBottomBox)"><circle cx="34" cy="94" r="9.15"/></g>
+            <!-- escanteios nos quatro cantos -->
+            <g clip-path="url(#clipFieldFull)">
+              <circle cx="0" cy="0" r="1"/>
+              <circle cx="68" cy="0" r="1"/>
+              <circle cx="0" cy="105" r="1"/>
+              <circle cx="68" cy="105" r="1"/>
+            </g>
+            <!-- gols centralizados nos dois lados -->
+            <path d="M30.34 0 L30.34 -2 L37.66 -2 L37.66 0" stroke="rgba(255,255,255,0.95)"/>
+            <path d="M30.34 105 L30.34 107 L37.66 107 L37.66 105" stroke="rgba(255,255,255,0.95)"/>
+          </g>
+          <g fill="rgba(255,255,255,0.95)">
+            <!-- marca do centro -->
+            <circle cx="34" cy="52.5" r="0.35"/>
+            <!-- marcas do pênalti -->
+            <circle cx="34" cy="11" r="0.35"/>
+            <circle cx="34" cy="94" r="0.35"/>
+          </g>
+        </svg>
+        <div id="rainLayer"></div>
+        <div id="zonePreview"><span></span></div>
+        <!-- cards inseridas via JS -->
+      </div>
+    </div>
+    <div id="benchWrapper">
+      <div id="benchColLabel">Banco</div>
+      <select id="benchFilterSelect">
+        <option value="todos">Todos</option>
+        <option value="gol">Goleiro</option>
+        <option value="zag">Zagueiro</option>
+        <option value="lateral">Lateral</option>
+        <option value="vol">Volante</option>
+        <option value="meia">Meia</option>
+        <option value="atacante">Atacante</option>
+      </select>
+      <div id="benchList"></div>
+    </div>
+  </div>
+  <div id="hint">O campo sempre tem 11 jogadores. Toque numa carta e depois na outra pra trocar de posição (campo ou banco). Arrastar só reposiciona dentro do campo, não troca ninguém. O goleiro só troca com outro goleiro.</div>
+
+  <!-- Narração da partida — em fluxo, abaixo do campo, nunca sobre ele -->
+  <div id="matchNarration">Aguardando início da partida...</div>
+
+  <!-- Botão "Continuar para Partida": em fluxo normal, abaixo de tudo, nunca sobrepõe nada -->
+  <button type="button" id="continueToMatchBtn">▶ Continuar para Partida</button>
+</div>
+
+<!-- Overlay de gol — exceção permitida (mensagem central temporária) -->
+<div class="goal-overlay" id="goalOverlay">
+  <div id="confettiLayer"></div>
+  <div class="goal-overlay-inner">
+    <div class="goal-emoji">⚽</div>
+    <div class="goal-text">GOOOOOOL!</div>
+    <div class="goal-scorer" id="goalScorerName"></div>
+    <div class="goal-minute" id="goalMinuteLabel"></div>
+  </div>
+</div>
+
+<div id="modalOverlay">
+  <div id="modalBox">
+    <h2 id="modalTitle">Criar Carta de Jogador</h2>
+    <div id="storageInfo">Calculando uso de armazenamento...</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button type="button" id="exportBtn" style="flex:1;padding:8px 10px;border-radius:8px;border:none;background:#2a3a4a;color:#fff;font-weight:bold;font-size:12px;">Exportar Backup</button>
+      <button type="button" id="importBtn" style="flex:1;padding:8px 10px;border-radius:8px;border:none;background:#2a3a4a;color:#fff;font-weight:bold;font-size:12px;">Importar Backup</button>
+      <input type="file" id="importFileInput" accept="application/json" style="display:none;">
+    </div>
+    <form id="cardForm">
+      <div class="field-group">
+        <label>Nome do jogador</label>
+        <input type="text" id="inputName" required>
+      </div>
+      <div class="field-group">
+        <label>Overall</label>
+        <input type="number" id="inputOverall" min="1" max="120" value="80" required>
+      </div>
+      <div class="field-group">
+        <label>Raridade da carta</label>
+        <select id="inputRarity" style="width:100%;padding:8px;border-radius:8px;border:none;background:#12181f;color:#fff;">
+          <option value="auto">Automática (pelo overall)</option>
+          <option value="bronze">Forçar Bronze</option>
+          <option value="prata">Forçar Prata</option>
+          <option value="ouro">Forçar Ouro</option>
+          <option value="epico">Forçar Épico</option>
+          <option value="lendario">Forçar Lendário</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Posições (marque uma ou mais)</label>
+        <div id="posChecks"></div>
+      </div>
+      <div class="field-group">
+        <label>Foto do jogador (preenche a carta)</label>
+        <button type="button" class="file-btn" id="photoBtn">Escolher foto</button>
+        <input type="file" id="inputPhoto" accept="image/*" class="hidden-file">
+        <span class="file-name" id="photoFileName"></span>
+        <img id="previewPhoto" class="preview-thumb checker-bg">
+        <div id="bgRemoveRow" style="display:none;">
+          <button type="button" id="bgRemoveBtn">Remover fundo</button>
+          <input type="range" id="bgTolerance" min="5" max="80" value="30">
+        </div>
+        <span id="bgRemoveHint" style="display:none;">Funciona melhor com fundo liso de uma cor só. Ajuste o controle e clique de novo se sobrar/faltar fundo.</span>
+      </div>
+      <div class="field-group">
+        <label>Escudo do país ou clube</label>
+        <button type="button" class="file-btn" id="badgeBtn">Escolher escudo</button>
+        <input type="file" id="inputBadge" accept="image/*" class="hidden-file">
+        <span class="file-name" id="badgeFileName"></span>
+        <img id="previewBadge" class="preview-thumb">
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="deleteCardBtn" style="display:none;">Excluir</button>
+        <button type="button" id="cancelCardBtn">Cancelar</button>
+        <button type="submit" id="saveCardBtn">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="playersListOverlay">
+  <div id="playersListBox">
+    <h2>Jogadores cadastrados</h2>
+    <input type="text" id="playersSearchInput" placeholder="Buscar por nome...">
+    <div id="playersListCount"></div>
+    <div id="playersListItems"></div>
+    <div id="playersListEmpty" style="display:none;">Nenhum jogador encontrado no banco de dados.</div>
+    <button type="button" id="closePlayersListBtn">Fechar</button>
+  </div>
+</div>
+
+<div id="auctionOverlay">
+  <div id="auctionBox">
+    <h2>Leilão</h2>
+    <div id="auctionSyncStatus">Conectando...</div>
+    <button type="button" id="createAuctionBtn">+ Colocar jogador em leilão</button>
+    <div id="auctionListItems"></div>
+    <div id="auctionListEmpty" style="display:none;">Nenhum leilão ativo no momento.</div>
+    <button type="button" id="closeAuctionBtn">Fechar</button>
+  </div>
+</div>
+
+<div id="createAuctionOverlay">
+  <div id="createAuctionBox">
+    <h2>Colocar jogador em leilão</h2>
+    <label for="auctionPlayerSelect">Jogador</label>
+    <select id="auctionPlayerSelect"></select>
+    <label for="auctionStartBid">Lance inicial (R$)</label>
+    <input type="number" id="auctionStartBid" min="1" placeholder="ex: 100">
+    <label for="auctionBuyNow">Compra já (R$) — opcional</label>
+    <input type="number" id="auctionBuyNow" min="1" placeholder="ex: 1800">
+    <label for="auctionDuration">Duração (horas)</label>
+    <input type="number" id="auctionDuration" min="1" value="2">
+    <div class="caf-actions">
+      <button type="button" id="cancelCreateAuctionBtn">Cancelar</button>
+      <button type="button" id="submitAuctionBtn">Publicar leilão</button>
+    </div>
+  </div>
+</div>
+
+<div id="musicModalOverlay">
+  <div id="musicModalBox">
+    <h2>Músicas</h2>
+    <button type="button" id="addTrackBtn">Adicionar faixa da galeria</button>
+    <input type="file" id="musicFileInput" accept="audio/*" class="hidden-file">
+
+    <div id="trimEditor" style="display:none;">
+      <div class="field-group">
+        <label>Nome da faixa</label>
+        <input type="text" id="trackNameInput">
+      </div>
+      <div class="field-group">
+        <label>Início: <span id="trimStartLabel">0:00</span></label>
+        <input type="range" id="trimStartRange" min="0" max="0" step="1" value="0">
+      </div>
+      <div class="field-group">
+        <label>Fim: <span id="trimEndLabel">0:00</span></label>
+        <input type="range" id="trimEndRange" min="0" max="0" step="1" value="0">
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="previewTrimBtn">Tocar prévia</button>
+        <button type="button" id="saveTrackBtn">Salvar</button>
+        <button type="button" id="cancelTrimBtn">Cancelar</button>
+      </div>
+    </div>
+
+    <div id="trackList"></div>
+    <div id="trackListEmpty">Nenhuma faixa adicionada ainda.</div>
+
+    <div class="modal-actions">
+      <button type="button" id="closeMusicModalBtn" style="flex:1;padding:10px;border-radius:8px;border:none;background:#384654;color:#fff;font-weight:bold;">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- ZONES (percentual, top = ataque, bottom = próprio gol) ----------
+  const ZONES = {
+    gol:  { label: "GOL", top: 92, left: 50 },
+    le:   { label: "LE",  top: 86, left: 13.5 },
+    zage: { label: "ZAG", top: 86, left: 37 },
+    zagd: { label: "ZAG", top: 86, left: 63 },
+    ld:   { label: "LD",  top: 86, left: 86.5 },
+    vol:  { label: "VOL", top: 62, left: 50 },
+    mce:  { label: "ME",  top: 51, left: 13.5 },
+    mcd:  { label: "MD",  top: 51, left: 86.5 },
+    mat:  { label: "MAT", top: 40, left: 50 },
+    pe:   { label: "PE",  top: 15, left: 13.5 },
+    sa:   { label: "SA",  top: 22, left: 50 },
+    pd:   { label: "PD",  top: 15, left: 86.5 },
+    ca:   { label: "CA",  top: 8,  left: 50 }
+  };
+
+  // ---------- GRADE DE ÁREAS (retângulos fixos que definem o rótulo da posição) ----------
+  // top/left em % [inicio, fim). O campo inteiro é coberto sem espaços.
+  const GRID = [
+    { label: "CA",  top: [0, 15],    left: [27, 73]  },
+    { label: "SA",  top: [15, 30],   left: [27, 73]  },
+    { label: "PE",  top: [0, 30],    left: [0, 27]   },
+    { label: "PD",  top: [0, 30],    left: [73, 100] },
+    { label: "MAT", top: [30, 51.5], left: [27, 73]  },
+    { label: "VOL", top: [51.5, 73], left: [27, 73]  },
+    { label: "ME",  top: [30, 73],   left: [0, 27]   },
+    { label: "MD",  top: [30, 73],   left: [73, 100] },
+    { label: "GOL", top: [91, 100],  left: [34, 66]  },
+    { label: "ZAG", top: [73, 100],  left: [27, 73]  },
+    { label: "LE",  top: [73, 100],  left: [0, 27]   },
+    { label: "LD",  top: [73, 100],  left: [73, 100] }
+  ];
+
+  function findGridCell(x, y){
+    for (const cell of GRID) {
+      if (x >= cell.left[0] && x < cell.left[1] && y >= cell.top[0] && y < cell.top[1]) {
+        return cell;
+      }
+    }
+    // segurança: se cair fora por arredondamento, usa a célula de centro mais próximo
+    let best = GRID[0], bestD = Infinity;
+    GRID.forEach(c => {
+      const cx = (c.left[0] + c.left[1]) / 2;
+      const cy = (c.top[0] + c.top[1]) / 2;
+      const d = Math.hypot(x - cx, y - cy);
+      if (d < bestD) { bestD = d; best = c; }
+    });
+    return best;
+  }
+
+  // ---------- FORMAÇÃO PADRÃO (usada só como layout inicial/fallback; as formações de verdade
+  // agora são criadas pelo usuário posicionando os jogadores e salvando com um nome) ----------
+  const DEFAULT_SLOT_KEYS = ["gol","ld","zagd","zage","le","vol","mcd","mce","pd","ca","pe"];
+
+  // ---------- JOGADORES (armazenados no IndexedDB, que suporta muito mais espaço que o localStorage — importante por causa das fotos/escudos) ----------
+  const PLAYERS_DB_NAME = "tacticalFieldDB_v1";
+  const PLAYERS_STORE = "players";
+  const MEDIA_STORE = "media";
+  const AUCTIONS_STORE = "auctions";
+
+  function openPlayersDB(){
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(PLAYERS_DB_NAME, 3);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(PLAYERS_STORE)) {
+          db.createObjectStore(PLAYERS_STORE, { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains(MEDIA_STORE)) {
+          db.createObjectStore(MEDIA_STORE, { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains(AUCTIONS_STORE)) {
+          db.createObjectStore(AUCTIONS_STORE, { keyPath: "id" });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  const playersDBPromise = openPlayersDB();
+
+  async function loadPlayersFromDB(){
+    try {
+      const db = await playersDBPromise;
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(PLAYERS_STORE, "readonly");
+        const req = tx.objectStore(PLAYERS_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.error("Erro ao carregar jogadores do armazenamento:", e);
+      return [];
+    }
+  }
+
+  async function savePlayerToDB(p){
+    const db = await playersDBPromise;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(PLAYERS_STORE, "readwrite");
+      tx.objectStore(PLAYERS_STORE).put(p);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function deletePlayerFromDB(id){
+    const db = await playersDBPromise;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(PLAYERS_STORE, "readwrite");
+      tx.objectStore(PLAYERS_STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  // ---------- LEILÃO (armazenado localmente no IndexedDB — cada dispositivo tem seu próprio leilão) ----------
+  async function loadAuctionsFromDB(){
+    try {
+      const db = await playersDBPromise;
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(AUCTIONS_STORE, "readonly");
+        const req = tx.objectStore(AUCTIONS_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.error("Erro ao carregar leilões do armazenamento:", e);
+      return [];
+    }
+  }
+
+  async function saveAuctionToDB(a){
+    const db = await playersDBPromise;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(AUCTIONS_STORE, "readwrite");
+      tx.objectStore(AUCTIONS_STORE).put(a);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function deleteAuctionFromDB(id){
+    const db = await playersDBPromise;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(AUCTIONS_STORE, "readwrite");
+      tx.objectStore(AUCTIONS_STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  const PLAYER_DATA = []; // preenchido de forma assíncrona a partir do IndexedDB, ver INIT no fim do arquivo
+
+  const STORAGE_KEY = "tacticalFieldState_v2";
+
+  // ---------- ESTADO (formação, escalação e posições em campo — dados leves, continuam no localStorage) ----------
+  // positions: playerId -> {x, y} em % livre dentro do campo (só vale pra quem está em campo)
+  // onField: array com no máximo 11 ids de jogadores que estão jogando; o resto fica no banco
+  const MAX_ON_FIELD = 11;
+
+  let state = {
+    formation: "4-3-3",
+    positions: {},
+    onField: []
+  };
+
+  function isOnField(id){
+    return state.onField.includes(id);
+  }
+
+  function benchIds(){
+    return PLAYER_DATA.map(p => p.id).filter(id => !isOnField(id));
+  }
+
+  // escolhe automaticamente até 11 jogadores para começar em campo,
+  // priorizando quem calha na posição natural de cada zona padrão
+  function autoSelectOnField(){
+    const slots = DEFAULT_SLOT_KEYS;
+    const chosen = [];
+    const used = new Set();
+    slots.forEach(slot => {
+      const cand = PLAYER_DATA.find(p => !used.has(p.id) && p.positions.includes(slot));
+      if (cand) { chosen.push(cand.id); used.add(cand.id); }
+    });
+    for (const p of PLAYER_DATA) {
+      if (chosen.length >= MAX_ON_FIELD) break;
+      if (!used.has(p.id)) { chosen.push(p.id); used.add(p.id); }
+    }
+    return chosen.slice(0, MAX_ON_FIELD);
+  }
+
+  // calcula as posições padrão (x,y) para uma lista de jogadores, encaixando cada um
+  // na zona natural mais compatível com sua posição
+  function computeDefaultPositions(onFieldIds){
+    const slots = DEFAULT_SLOT_KEYS.slice();
+    const positions = {};
+    const usedSlots = new Set();
+    const players = onFieldIds.map(id => playerById(id)).filter(Boolean);
+
+    players.forEach(p => {
+      const slot = slots.find(s => !usedSlots.has(s) && p.positions.includes(s));
+      if (slot) { usedSlots.add(slot); positions[p.id] = { x: ZONES[slot].left, y: ZONES[slot].top }; }
+    });
+
+    const remainingPlayers = players.filter(p => !positions[p.id]);
+    const remainingSlots = slots.filter(s => !usedSlots.has(s));
+    remainingPlayers.forEach((p, i) => {
+      const slot = remainingSlots[i] || slots[slots.length - 1];
+      positions[p.id] = { x: ZONES[slot].left, y: ZONES[slot].top };
+    });
+
+    return positions;
+  }
+
+  // preenche posição padrão só para quem, dentre os jogadores em campo, ainda não tem
+  // nenhuma coordenada salva (ex: jogador novo escalado) — nunca sobrescreve quem já tem posição
+  function fillMissingPositions(onFieldIds, existingPositions){
+    const missingIds = onFieldIds.filter(id => !existingPositions[id]);
+    if (!missingIds.length) return {};
+    return computeDefaultPositions(missingIds);
+  }
+
+  // garante que o campo tenha 11 jogadores sempre que houver gente suficiente
+  // (corrige estados salvos antigos que tenham ficado com menos de 11)
+  function topUpOnField(){
+    if (state.onField.length >= MAX_ON_FIELD) return;
+    const usedIds = new Set(state.onField);
+    for (const p of PLAYER_DATA) {
+      if (state.onField.length >= MAX_ON_FIELD) break;
+      if (!usedIds.has(p.id)) { state.onField.push(p.id); usedIds.add(p.id); }
+    }
+    Object.assign(state.positions, fillMissingPositions(state.onField, state.positions));
+  }
+
+  function loadState(){
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.positions) {
+          const ids = new Set(PLAYER_DATA.map(p => p.id));
+          let onField = Array.isArray(parsed.onField) ? parsed.onField.filter(id => ids.has(id)) : null;
+          if (!onField || !onField.length) onField = autoSelectOnField();
+          if (onField.length > MAX_ON_FIELD) onField = onField.slice(0, MAX_ON_FIELD);
+          const positions = { ...parsed.positions };
+          Object.assign(positions, fillMissingPositions(onField, positions));
+          state = {
+            formation: typeof parsed.formation === "string" ? parsed.formation : "",
+            positions,
+            onField
+          };
+          topUpOnField();
+          return;
+        }
+      }
+    } catch(e){}
+    const onField = autoSelectOnField();
+    state = { formation: "", positions: computeDefaultPositions(onField), onField };
+  }
+
+  function saveState(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  // ---------- CHEMISTRY (baseada na distância real até a posição natural) ----------
+  // grupo de cada posição, usado só para aplicar uma penalidade extra quando
+  // o jogador atua num papel totalmente oposto ao seu (ex: atacante na lateral)
+  const LABEL_GROUP = {
+    GOL: "gol",
+    LE: "def", ZAG: "def", LD: "def",
+    VOL: "meio", ME: "meio", MD: "meio", MAT: "meio",
+    PE: "ataque", SA: "ataque", PD: "ataque", CA: "ataque"
+  };
+  const OPPOSITE_GROUP = {
+    gol: "ataque",
+    ataque: "gol",
+    def: null,
+    meio: null
+  };
+
+  function nearestNaturalDistance(player, x, y){
+    let best = Infinity;
+    player.positions.forEach(key => {
+      const z = ZONES[key];
+      if (!z) return;
+      const d = Math.hypot(x - z.left, y - z.top);
+      if (d < best) best = d;
+    });
+    return best === Infinity ? 0 : best;
+  }
+
+  function computeChemistry(player, x, y){
+    const cell = findGridCell(x, y);
+    const naturalLabels = player.positions.map(p => ZONES[p] ? ZONES[p].label : null).filter(Boolean);
+
+    // se a área atual (rótulo) é uma das posições do jogador, overall fica cheio
+    if (naturalLabels.includes(cell.label)) return 100;
+
+    const d = nearestNaturalDistance(player, x, y);
+    // queda acentuada: perto da posição natural mantém química alta,
+    // mas quanto mais o jogador se afasta, mais rápido a química despenca
+    let chem = 100 - Math.pow(d / 1.6, 1.7);
+
+    // penalidade extra: atacante (CA/PE/SA/PD) jogando de lateral/zagueiro (LE/ZAG/LD)
+    // ou vice-versa, e goleiro fora do gol, derruba muito mais forte
+    const naturalGroup = LABEL_GROUP[naturalLabels[0]];
+    const currentGroup = LABEL_GROUP[cell.label];
+    const isFullbackOrDef = currentGroup === "def";
+    const isAttacker = naturalGroup === "ataque";
+    if ((isAttacker && isFullbackOrDef) || (naturalGroup === "def" && currentGroup === "ataque")) {
+      chem -= 35;
+    }
+    if (naturalGroup && currentGroup && OPPOSITE_GROUP[naturalGroup] === currentGroup) {
+      chem -= 35;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(chem)));
+  }
+
+  // penalidade no overall exibido conforme a distância da posição natural
+  // (queda drástica e progressiva à medida que o jogador se afasta)
+  function overallPenalty(chem){
+    if (chem >= 95) return 0;
+    if (chem >= 80) return 3;
+    if (chem >= 60) return 8;
+    if (chem >= 40) return 16;
+    if (chem >= 20) return 28;
+    if (chem >= 5)  return 40;
+    return 55;
+  }
+
+  function effectiveOverall(baseOverall, chem){
+    return Math.max(1, baseOverall - overallPenalty(chem));
+  }
+
+  // ---------- RARIDADE (automática pelo overall, ou forçada manualmente) ----------
+  function getRarity(baseOverall, override){
+    if (override && override !== "auto") return override;
+    if (baseOverall >= 110) return "lendario";
+    if (baseOverall >= 105) return "epico";
+    if (baseOverall >= 100) return "ouro";
+    if (baseOverall >= 90)  return "prata";
+    return "bronze";
+  }
+  const RARITY_LABEL = { bronze: "Bronze", prata: "Prata", ouro: "Ouro", epico: "Épico", lendario: "Lendário" };
+
+  // ---------- RENDER ----------
+  const field = document.getElementById("field");
+  const benchWrapper = document.getElementById("benchWrapper");
+  const benchList = document.getElementById("benchList");
+  const benchToggleBtn = document.getElementById("benchToggleBtn");
+  const benchToggleCount = document.getElementById("benchToggleCount");
+
+  const fieldWrapperEl = document.getElementById("field-wrapper");
+
+  function syncBenchHeight(){
+    if (!benchWrapper.classList.contains("open")) return;
+    benchWrapper.style.height = fieldWrapperEl.getBoundingClientRect().height + "px";
+  }
+
+  benchToggleBtn.addEventListener("click", () => {
+    benchWrapper.classList.toggle("open");
+    benchToggleBtn.classList.toggle("active", benchWrapper.classList.contains("open"));
+    if (benchWrapper.classList.contains("open")) {
+      requestAnimationFrame(syncBenchHeight);
+    } else {
+      benchWrapper.style.height = "";
+    }
+  });
+  if (window.ResizeObserver) {
+    new ResizeObserver(syncBenchHeight).observe(fieldWrapperEl);
+  } else {
+    window.addEventListener("resize", syncBenchHeight);
+  }
+  const cardEls = {}; // playerId -> element
+  const zonePreview = document.getElementById("zonePreview");
+  const zonePreviewText = zonePreview.querySelector("span");
+
+  function escapeHtml(str){
+    const d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function buildCards(){
+    PLAYER_DATA.forEach(p => mountCard(p));
+  }
+
+  function playerById(id){
+    return PLAYER_DATA.find(p => p.id === id);
+  }
+
+  function updateCardVisual(playerId, animate){
+    const p = playerById(playerId);
+    const el = cardEls[playerId];
+    if (!el) return;
+
+    // reservas no banco: carta estática, sem posição/química calculada
+    if (!p.positions.includes("gol") && !isOnField(playerId)) {
+      el.style.left = "";
+      el.style.top = "";
+      const naturalLabel = ZONES[p.positions[0]] ? ZONES[p.positions[0]].label : "";
+      el.querySelector('[data-role="pos"]').textContent = naturalLabel;
+      const ovrEl = el.querySelector('[data-role="ovr"]');
+      ovrEl.textContent = p.overall;
+      ovrEl.classList.remove("ovr-drop");
+      if (animate) {
+        el.classList.remove("pop", "bench-pop");
+        void el.offsetWidth;
+        el.classList.add("bench-pop");
+      }
+      return;
+    }
+
+    let pos;
+    if (p.positions.includes("gol")) {
+      // goleiro sempre fixo na zona do gol
+      pos = { x: ZONES.gol.left, y: ZONES.gol.top };
+      state.positions[playerId] = pos;
+    } else {
+      pos = state.positions[playerId];
+    }
+
+    el.style.left = pos.x + "%";
+    el.style.top = pos.y + "%";
+
+    const cell = findGridCell(pos.x, pos.y);
+    el.querySelector('[data-role="pos"]').textContent = cell.label;
+    const chem = computeChemistry(p, pos.x, pos.y);
+
+    const ovr = effectiveOverall(p.overall, chem);
+    const ovrEl = el.querySelector('[data-role="ovr"]');
+    ovrEl.textContent = ovr;
+    ovrEl.classList.toggle("ovr-drop", ovr < p.overall);
+
+    if (animate) {
+      el.classList.remove("pop", "bench-pop");
+      void el.offsetWidth;
+      el.classList.add("pop");
+    }
+  }
+
+  function renderAll(animate){
+    PLAYER_DATA.forEach(p => updateCardVisual(p.id, animate));
+    renderBenchMeta();
+  }
+
+  function renderBenchMeta(){
+    const count = benchIds().length;
+    if (count > 0) {
+      benchToggleCount.textContent = count;
+      benchToggleCount.style.display = "inline-block";
+    } else {
+      benchToggleCount.style.display = "none";
+    }
+    benchEmptyState();
+  }
+
+  function benchEmptyState(){
+    if (benchIds().length === 0) {
+      if (!document.getElementById("benchEmpty")) {
+        const div = document.createElement("div");
+        div.id = "benchEmpty";
+        div.textContent = "Nenhum reserva. Arraste um jogador do campo até aqui para reservá-lo.";
+        benchList.appendChild(div);
+      }
+    } else {
+      const empty = document.getElementById("benchEmpty");
+      if (empty) empty.remove();
+    }
+    applyBenchFilter();
+  }
+
+  // ---------- FILTRO DO BANCO POR POSIÇÃO ----------
+  const BENCH_FILTER_GROUPS = {
+    gol: ["gol"],
+    zag: ["zage", "zagd"],
+    lateral: ["le", "ld"],
+    vol: ["vol"],
+    meia: ["mce", "mcd", "mat"],
+    atacante: ["pe", "sa", "pd", "ca"]
+  };
+  const benchFilterSelect = document.getElementById("benchFilterSelect");
+
+  function applyBenchFilter(){
+    const filter = benchFilterSelect.value;
+    const allowedKeys = filter === "todos" ? null : BENCH_FILTER_GROUPS[filter];
+    benchList.querySelectorAll(".card.bench").forEach(card => {
+      const playerId = card.dataset.playerId;
+      const p = playerById(playerId);
+      const show = !allowedKeys || (p && p.positions.some(key => allowedKeys.includes(key)));
+      card.style.display = show ? "" : "none";
+    });
+  }
+  benchFilterSelect.addEventListener("change", applyBenchFilter);
+
+  // ---------- FORMAÇÕES PERSONALIZADAS (o usuário posiciona os jogadores como quiser
+  // e salva o arranjo com um nome, ex: "4-3-3 Ofensivo") ----------
+  const FORMATIONS_KEY = "tacticalFieldFormations_v1";
+  let customFormations = [];
+
+  function loadFormationsFromStorage(){
+    try {
+      const raw = localStorage.getItem(FORMATIONS_KEY);
+      customFormations = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(customFormations)) customFormations = [];
+    } catch (e) {
+      customFormations = [];
+    }
+  }
+
+  function saveFormationsToStorage(){
+    localStorage.setItem(FORMATIONS_KEY, JSON.stringify(customFormations));
+  }
+
+  const formationSelect = document.getElementById("formationSelect");
+
+  function populateFormationSelect(selectedId){
+    formationSelect.innerHTML = "";
+    const optDefault = document.createElement("option");
+    optDefault.value = "";
+    optDefault.textContent = customFormations.length ? "Escolher formação salva…" : "Nenhuma formação salva ainda";
+    formationSelect.appendChild(optDefault);
+    customFormations.forEach(f => {
+      const opt = document.createElement("option");
+      opt.value = f.id;
+      opt.textContent = f.name;
+      formationSelect.appendChild(opt);
+    });
+    formationSelect.value = selectedId && customFormations.some(f => f.id === selectedId) ? selectedId : "";
+  }
+
+  // aplica uma formação salva: reaproveita os 11 jogadores que já estão em campo,
+  // só rearranjando a posição de cada um conforme o layout salvo
+  function applyFormationById(id){
+    const f = customFormations.find(x => x.id === id);
+    if (!f) return;
+    const ids = state.onField.slice(0, MAX_ON_FIELD);
+    f.slots.forEach((pos, i) => {
+      const pid = ids[i];
+      if (pid) state.positions[pid] = { x: pos.x, y: pos.y };
+    });
+    state.formation = id;
+    saveState();
+    renderAll(true);
+  }
+
+  formationSelect.addEventListener("change", (e) => {
+    if (e.target.value) applyFormationById(e.target.value);
+  });
+
+  document.getElementById("saveFormationBtn").addEventListener("click", () => {
+    const name = prompt("Nome da formação (ex: 4-3-3 Ofensivo):");
+    if (!name || !name.trim()) return;
+    const slots = state.onField.slice(0, MAX_ON_FIELD).map(pid => {
+      const pos = state.positions[pid] || { x: 50, y: 50 };
+      return { x: pos.x, y: pos.y };
+    });
+    const id = "f_" + Date.now();
+    customFormations.push({ id, name: name.trim(), slots });
+    saveFormationsToStorage();
+    populateFormationSelect(id);
+    state.formation = id;
+    saveState();
+  });
+
+  document.getElementById("deleteFormationBtn").addEventListener("click", () => {
+    const id = formationSelect.value;
+    if (!id) { alert("Selecione uma formação salva para excluir."); return; }
+    const f = customFormations.find(x => x.id === id);
+    if (!f) return;
+    if (!confirm(`Excluir a formação "${f.name}"?`)) return;
+    customFormations = customFormations.filter(x => x.id !== id);
+    saveFormationsToStorage();
+    if (state.formation === id) state.formation = "";
+    saveState();
+    populateFormationSelect(null);
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    if (!confirm("Resetar posições para o layout padrão?")) return;
+    const ids = state.onField.slice(0, MAX_ON_FIELD);
+    const defaults = computeDefaultPositions(ids);
+    Object.assign(state.positions, defaults);
+    state.formation = "";
+    saveState();
+    populateFormationSelect(null);
+    renderAll(true);
+  });
+
+  // ---------- seleção por toque para trocar jogadores (campo <-> campo, campo <-> banco) ----------
+  let selectedSwap = null; // { id, isBench }
+
+  function clearSwapSelection(){
+    if (selectedSwap && cardEls[selectedSwap.id]) cardEls[selectedSwap.id].classList.remove("selected-for-swap");
+    selectedSwap = null;
+  }
+
+  function performSwap(a, b){
+    const playerA = playerById(a.id);
+    const playerB = playerById(b.id);
+    if (!playerA || !playerB) return;
+
+    const aIsGol = playerA.positions.includes("gol");
+    const bIsGol = playerB.positions.includes("gol");
+
+    // goleiro só pode trocar com outro goleiro
+    if (aIsGol !== bIsGol) {
+      alert("O goleiro só pode trocar de posição com outro goleiro.");
+      return;
+    }
+
+    if (a.isBench && b.isBench) {
+      // dois reservas: não há posição em campo pra trocar entre eles
+      return;
+    }
+
+    if (!a.isBench && !b.isBench) {
+      // dois titulares: troca de posição em campo
+      const posA = state.positions[a.id];
+      const posB = state.positions[b.id];
+      state.positions[a.id] = posB;
+      state.positions[b.id] = posA;
+      saveState();
+      updateCardVisual(a.id, true);
+      updateCardVisual(b.id, true);
+      return;
+    }
+
+    // um titular e um reserva: troca de vaga
+    const fieldItem = a.isBench ? b : a;
+    const benchItem = a.isBench ? a : b;
+    const fieldPos = state.positions[fieldItem.id];
+    swapFieldAndBench(fieldItem.id, benchItem.id, fieldPos);
+  }
+
+
+  // clique em área vazia do campo (fora de qualquer carta) desmarca a seleção
+  field.addEventListener("pointerdown", (ev) => {
+    if (ev.target === field) {
+      clearSwapSelection();
+    }
+  });
+
+  function handleCardTap(playerId, isBench){
+    if (!selectedSwap) {
+      selectedSwap = { id: playerId, isBench };
+      if (cardEls[playerId]) cardEls[playerId].classList.add("selected-for-swap");
+      return;
+    }
+    if (selectedSwap.id === playerId) {
+      clearSwapSelection();
+      return;
+    }
+    const first = selectedSwap;
+    clearSwapSelection();
+    performSwap(first, { id: playerId, isBench });
+  }
+
+  // ---------- arraste livre no campo (só reposiciona; trocar de jogador é sempre por clique) ----------
+  let dragCtx = null;
+  const TAP_MOVE_THRESHOLD = 14; // pixels: abaixo disso conta como toque (seleciona pra troca), não arraste
+
+  function attachPointerHandlers(card, playerId){
+    card.addEventListener("pointerdown", (ev) => onPointerDown(ev, card, playerId));
+  }
+
+  function fieldRect(){
+    return field.getBoundingClientRect();
+  }
+
+  function clientToPercent(clientX, clientY){
+    const rect = fieldRect();
+    const leftPct = ((clientX - rect.left) / rect.width) * 100;
+    const topPct = ((clientY - rect.top) / rect.height) * 100;
+    return { left: leftPct, top: topPct };
+  }
+
+  // garante que a carta inteira (não só o centro) fique dentro dos limites do campo
+  function clampCardCenterPercent(card, leftPct, topPct){
+    const rect = fieldRect();
+    const cardRect = card.getBoundingClientRect();
+    const halfWPct = (cardRect.width / 2 / rect.width) * 100;
+    const halfHPct = (cardRect.height / 2 / rect.height) * 100;
+    const left = Math.max(halfWPct, Math.min(100 - halfWPct, leftPct));
+    const top = Math.max(halfHPct, Math.min(100 - halfHPct, topPct));
+    return { left, top };
+  }
+
+  function onPointerDown(ev, card, playerId){
+    ev.preventDefault();
+    card.setPointerCapture(ev.pointerId);
+    const startPct = clientToPercent(ev.clientX, ev.clientY);
+    const curLeft = parseFloat(card.style.left);
+    const curTop = parseFloat(card.style.top);
+
+    dragCtx = {
+      playerId,
+      card,
+      pointerId: ev.pointerId,
+      offsetLeft: startPct.left - curLeft,
+      offsetTop: startPct.top - curTop,
+      originPos: { x: state.positions[playerId].x, y: state.positions[playerId].y },
+      startClientX: ev.clientX,
+      startClientY: ev.clientY,
+      moved: false
+    };
+
+    card.classList.remove("snap");
+    card.classList.add("dragging");
+
+    zonePreview.classList.add("active");
+    updateZonePreview(curLeft, curTop);
+
+    card.addEventListener("pointermove", onPointerMove);
+    card.addEventListener("pointerup", onPointerUp);
+    card.addEventListener("pointercancel", onPointerUp);
+  }
+
+  function updateZonePreview(x, y){
+    const cell = findGridCell(x, y);
+    zonePreview.style.left = cell.left[0] + "%";
+    zonePreview.style.top = cell.top[0] + "%";
+    zonePreview.style.width = (cell.left[1] - cell.left[0]) + "%";
+    zonePreview.style.height = (cell.top[1] - cell.top[0]) + "%";
+    zonePreviewText.textContent = cell.label;
+  }
+
+  function onPointerMove(ev){
+    if (!dragCtx || ev.pointerId !== dragCtx.pointerId) return;
+    ev.preventDefault();
+    if (!dragCtx.moved) {
+      const dx = ev.clientX - dragCtx.startClientX;
+      const dy = ev.clientY - dragCtx.startClientY;
+      if (Math.hypot(dx, dy) > TAP_MOVE_THRESHOLD) dragCtx.moved = true;
+    }
+    const pct = clientToPercent(ev.clientX, ev.clientY);
+    const rawLeft = pct.left - dragCtx.offsetLeft;
+    const rawTop = pct.top - dragCtx.offsetTop;
+    const clamped = clampCardCenterPercent(dragCtx.card, rawLeft, rawTop);
+    dragCtx.card.style.left = clamped.left + "%";
+    dragCtx.card.style.top = clamped.top + "%";
+
+    updateZonePreview(clamped.left, clamped.top);
+  }
+
+  function onPointerUp(ev){
+    if (!dragCtx || ev.pointerId !== dragCtx.pointerId) return;
+    const card = dragCtx.card;
+    card.releasePointerCapture(ev.pointerId);
+    card.removeEventListener("pointermove", onPointerMove);
+    card.removeEventListener("pointerup", onPointerUp);
+    card.removeEventListener("pointercancel", onPointerUp);
+    card.classList.remove("dragging");
+    card.classList.add("snap");
+    zonePreview.classList.remove("active");
+
+    const draggedPlayerId = dragCtx.playerId;
+
+    if (!dragCtx.moved) {
+      // foi um toque, não um arraste: volta pra posição original e seleciona pra troca
+      card.style.left = dragCtx.originPos.x + "%";
+      card.style.top = dragCtx.originPos.y + "%";
+      dragCtx = null;
+      handleCardTap(draggedPlayerId, false);
+      return;
+    }
+
+    // arraste livre: fica exatamente onde foi solto, sempre dentro do campo.
+    // trocar de jogador (com outra carta ou com o banco) só acontece por clique, nunca por arraste.
+    const curX = parseFloat(card.style.left);
+    const curY = parseFloat(card.style.top);
+    state.positions[draggedPlayerId] = { x: curX, y: curY };
+    saveState();
+    updateCardVisual(draggedPlayerId, true);
+
+    dragCtx = null;
+  }
+
+  // troca direta: quem estava em campo vai pro banco, quem estava no banco assume a vaga (só via clique)
+  function swapFieldAndBench(fieldPlayerId, benchPlayerId, fieldPos){
+    const idx = state.onField.indexOf(fieldPlayerId);
+    if (idx === -1) return;
+    state.onField[idx] = benchPlayerId;
+    state.positions[benchPlayerId] = fieldPos;
+    unmountCard(fieldPlayerId);
+    unmountCard(benchPlayerId);
+    mountCard(playerById(fieldPlayerId));
+    mountCard(playerById(benchPlayerId));
+    saveState();
+    updateCardVisual(fieldPlayerId, true);
+    updateCardVisual(benchPlayerId, true);
+    renderBenchMeta();
+  }
+
+  // ---------- CRIAR CARTA DE JOGADOR ----------
+  const ALL_POS_LABELS = ["GOL","LE","ZAG","LD","VOL","ME","MD","MAT","PE","SA","PD","CA"];
+  // mapeia label -> chave de zona (para gravar em positions[])
+  const LABEL_TO_ZONEKEY = {};
+  Object.keys(ZONES).forEach(key => {
+    const lbl = ZONES[key].label;
+    if (!LABEL_TO_ZONEKEY[lbl]) LABEL_TO_ZONEKEY[lbl] = key;
+  });
+
+  const modalOverlay = document.getElementById("modalOverlay");
+  const modalTitle = document.getElementById("modalTitle");
+  const cardForm = document.getElementById("cardForm");
+  const posChecks = document.getElementById("posChecks");
+  const inputPhoto = document.getElementById("inputPhoto");
+  const inputBadge = document.getElementById("inputBadge");
+  const previewPhoto = document.getElementById("previewPhoto");
+  const previewBadge = document.getElementById("previewBadge");
+  const deleteCardBtn = document.getElementById("deleteCardBtn");
+
+  let editingPlayerId = null;
+  let editingOriginalPhoto = null;
+  let editingOriginalBadge = null;
+
+  ALL_POS_LABELS.forEach(lbl => {
+    const label = document.createElement("label");
+    label.innerHTML = `<input type="checkbox" value="${lbl}"> ${lbl}`;
+    posChecks.appendChild(label);
+  });
+
+  function fileToDataUrl(file){
+    return new Promise((resolve, reject) => {
+      if (!file) { resolve(null); return; }
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function setupPreview(input, imgEl, nameEl, onLoaded){
+    input.addEventListener("change", () => {
+      const file = input.files[0];
+      if (!file) { imgEl.style.display = "none"; if(nameEl) nameEl.textContent=""; if (onLoaded) onLoaded(null); return; }
+      if (nameEl) nameEl.textContent = file.name;
+      const reader = new FileReader();
+      reader.onload = () => {
+        imgEl.src = reader.result;
+        imgEl.style.display = "block";
+        if (onLoaded) onLoaded(reader.result);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  setupPreview(inputPhoto, previewPhoto, document.getElementById("photoFileName"), (dataUrl) => {
+    pendingPhotoOverride = null; // nova foto escolhida: descarta qualquer remoção de fundo anterior
+    toggleBgRemoveUI(!!dataUrl);
+  });
+  setupPreview(inputBadge, previewBadge, document.getElementById("badgeFileName"));
+
+  document.getElementById("photoBtn").addEventListener("click", () => inputPhoto.click());
+  document.getElementById("badgeBtn").addEventListener("click", () => inputBadge.click());
+
+  // ---------- REMOÇÃO DE FUNDO DA FOTO (client-side, sem IA) ----------
+  // Estratégia: assume que o fundo é aproximadamente uma cor sólida perto das
+  // bordas da imagem. Faz um "flood fill" a partir de todos os pixels da borda,
+  // apagando (alpha 0) tudo que for parecido o suficiente com essa cor de fundo
+  // e estiver conectado à borda. Funciona bem para fotos com fundo liso; não é
+  // um recorte de silhueta real (isso exigiria um modelo de IA).
+  let pendingPhotoOverride = null;
+  const bgRemoveRow = document.getElementById("bgRemoveRow");
+  const bgRemoveHint = document.getElementById("bgRemoveHint");
+  const bgRemoveBtn = document.getElementById("bgRemoveBtn");
+  const bgTolerance = document.getElementById("bgTolerance");
+
+  function toggleBgRemoveUI(show){
+    bgRemoveRow.style.display = show ? "flex" : "none";
+    bgRemoveHint.style.display = show ? "block" : "none";
+  }
+
+  function removeBackgroundFromDataUrl(dataUrl, tolerance){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const MAX_DIM = 500; // limite pra manter o processamento rápido
+        let w = img.naturalWidth, h = img.naturalHeight;
+        const scale = Math.min(1, MAX_DIM / Math.max(w, h));
+        w = Math.max(1, Math.round(w * scale));
+        h = Math.max(1, Math.round(h * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+
+        let imageData;
+        try {
+          imageData = ctx.getImageData(0, 0, w, h);
+        } catch (e) { reject(e); return; }
+        const data = imageData.data;
+
+        // amostra a cor de fundo pelas quinas (média de pequenos blocos)
+        function sampleBlock(cx, cy){
+          let r=0,g=0,b=0,n=0;
+          for (let y = cy; y < cy+4 && y < h; y++){
+            for (let x = cx; x < cx+4 && x < w; x++){
+              const i = (y*w+x)*4;
+              r += data[i]; g += data[i+1]; b += data[i+2]; n++;
+            }
+          }
+          return n ? [r/n, g/n, b/n] : [255,255,255];
+        }
+        const corners = [sampleBlock(0,0), sampleBlock(w-4,0), sampleBlock(0,h-4), sampleBlock(w-4,h-4)];
+        const bg = [
+          (corners[0][0]+corners[1][0]+corners[2][0]+corners[3][0])/4,
+          (corners[0][1]+corners[1][1]+corners[2][1]+corners[3][1])/4,
+          (corners[0][2]+corners[1][2]+corners[2][2]+corners[3][2])/4
+        ];
+
+        const tol = tolerance * tolerance * 3; // distância euclidiana ao quadrado
+        const visited = new Uint8Array(w*h);
+        const queue = new Int32Array(w*h);
+        let qStart = 0, qEnd = 0;
+
+        function colorDistSq(i){
+          const dr = data[i] - bg[0], dg = data[i+1] - bg[1], db = data[i+2] - bg[2];
+          return dr*dr + dg*dg + db*db;
+        }
+
+        // semeia a partir de toda a borda da imagem
+        for (let x = 0; x < w; x++){ queue[qEnd++] = x; queue[qEnd++] = (h-1)*w + x; }
+        for (let y = 0; y < h; y++){ queue[qEnd++] = y*w; queue[qEnd++] = y*w + (w-1); }
+
+        while (qStart < qEnd){
+          const p = queue[qStart++];
+          if (visited[p]) continue;
+          visited[p] = 1;
+          const i = p*4;
+          if (colorDistSq(i) > tol) continue; // não é fundo, não propaga nem apaga
+          data[i+3] = 0; // apaga (transparente)
+          const x = p % w, y = (p / w) | 0;
+          if (x > 0 && !visited[p-1]) queue[qEnd++] = p-1;
+          if (x < w-1 && !visited[p+1]) queue[qEnd++] = p+1;
+          if (y > 0 && !visited[p-w]) queue[qEnd++] = p-w;
+          if (y < h-1 && !visited[p+w]) queue[qEnd++] = p+w;
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+
+  bgRemoveBtn.addEventListener("click", async () => {
+    if (!previewPhoto.src) return;
+    const originalLabel = bgRemoveBtn.textContent;
+    bgRemoveBtn.textContent = "Processando...";
+    bgRemoveBtn.disabled = true;
+    try {
+      const tol = parseInt(bgTolerance.value, 10) || 30;
+      const cleaned = await removeBackgroundFromDataUrl(previewPhoto.src, tol);
+      previewPhoto.src = cleaned;
+      pendingPhotoOverride = cleaned;
+    } catch (e) {
+      console.error(e);
+      alert("Não foi possível processar essa imagem.");
+    } finally {
+      bgRemoveBtn.textContent = originalLabel;
+      bgRemoveBtn.disabled = false;
+    }
+  });
+
+  // ---------- helpers de montagem da carta no campo ----------
+  function createCardElement(p){
+    const card = document.createElement("div");
+    const rarity = getRarity(p.overall, p.rarity);
+    card.className = "card snap rarity-" + rarity + (p.photo ? " has-photo" : "");
+    card.dataset.playerId = p.id;
+    if (p.positions.includes("gol")) card.classList.add("locked");
+    const photoBg = p.photo ? `<div class="photo-bg" style="background-image:url('${p.photo}')"></div>` : "";
+    const badgeImg = p.badge ? `<img class="badge-img" src="${p.badge}">` : "";
+    const nameStrip = p.photo ? `<div class="name-strip"></div>` : "";
+    card.innerHTML = `
+      ${photoBg}
+      ${nameStrip}
+      <div class="corner">
+        <div class="ovr" data-role="ovr">${p.overall}</div>
+        ${badgeImg}
+      </div>
+      <div class="pos" data-role="pos"></div>
+      <div class="name">${escapeHtml(p.name)}</div>
+    `;
+    return card;
+  }
+
+  function mountCard(p){
+    const card = createCardElement(p);
+    cardEls[p.id] = card;
+
+    if (p.positions.includes("gol")) {
+      if (isOnField(p.id)) {
+        // goleiro em campo tem posição travada (não arrasta pra outro lugar do gramado)
+        field.appendChild(card);
+        card.addEventListener("click", () => handleCardTap(p.id, false));
+      } else {
+        card.classList.add("bench");
+        benchList.appendChild(card);
+        attachBenchPointerHandlers(card, p.id);
+      }
+      benchEmptyState();
+      return;
+    }
+
+    if (isOnField(p.id)) {
+      field.appendChild(card);
+      attachPointerHandlers(card, p.id);
+    } else {
+      card.classList.add("bench");
+      benchList.appendChild(card);
+      attachBenchPointerHandlers(card, p.id);
+    }
+    benchEmptyState();
+  }
+
+  function unmountCard(playerId){
+    const el = cardEls[playerId];
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+    delete cardEls[playerId];
+  }
+
+  // ---------- troca de posição a partir do banco de reservas (seleção por toque) ----------
+
+  function attachBenchPointerHandlers(card, playerId){
+    card.addEventListener("click", () => handleCardTap(playerId, true));
+  }
+
+  function formatBytes(bytes){
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  async function updateStorageInfo(){
+    const el = document.getElementById("storageInfo");
+    if (!navigator.storage || !navigator.storage.estimate) {
+      el.textContent = "Não foi possível checar o armazenamento neste navegador.";
+      return;
+    }
+    try {
+      const { usage, quota } = await navigator.storage.estimate();
+      const pct = quota ? Math.min(100, (usage / quota) * 100) : 0;
+      const barClass = pct >= 90 ? "danger" : (pct >= 70 ? "warn" : "");
+      el.innerHTML = `
+        Armazenamento usado: ${formatBytes(usage)} de ${formatBytes(quota)} (${pct.toFixed(1)}%)
+        <div class="bar-track"><div class="bar-fill ${barClass}" style="width:${pct.toFixed(1)}%"></div></div>
+      `;
+    } catch (e) {
+      el.textContent = "Não foi possível checar o armazenamento.";
+    }
+  }
+
+  function openModal(playerId){
+    clearSwapSelection();
+    cardForm.reset();
+    previewPhoto.style.display = "none";
+    previewBadge.style.display = "none";
+    document.getElementById("photoFileName").textContent = "";
+    document.getElementById("badgeFileName").textContent = "";
+    posChecks.querySelectorAll("input").forEach(c => c.checked = false);
+    pendingPhotoOverride = null;
+    toggleBgRemoveUI(false);
+
+    if (playerId) {
+      const p = playerById(playerId);
+      editingPlayerId = playerId;
+      editingOriginalPhoto = p.photo || null;
+      editingOriginalBadge = p.badge || null;
+      modalTitle.textContent = "Editar Jogador";
+      deleteCardBtn.style.display = "block";
+      document.getElementById("inputName").value = p.name;
+      document.getElementById("inputOverall").value = p.overall;
+      const naturalLabels = p.positions.map(key => ZONES[key] ? ZONES[key].label : null).filter(Boolean);
+      posChecks.querySelectorAll("input").forEach(c => {
+        c.checked = naturalLabels.includes(c.value);
+      });
+      if (p.photo) { previewPhoto.src = p.photo; previewPhoto.style.display = "block"; toggleBgRemoveUI(true); }
+      if (p.badge) { previewBadge.src = p.badge; previewBadge.style.display = "block"; }
+      document.getElementById("inputRarity").value = p.rarity || "auto";
+    } else {
+      editingPlayerId = null;
+      editingOriginalPhoto = null;
+      editingOriginalBadge = null;
+      modalTitle.textContent = "Criar Carta de Jogador";
+      deleteCardBtn.style.display = "none";
+      document.getElementById("inputRarity").value = "auto";
+    }
+
+    modalOverlay.classList.add("open");
+    updateStorageInfo();
+  }
+
+  function closeModal(){
+    modalOverlay.classList.remove("open");
+    editingPlayerId = null;
+  }
+
+  document.getElementById("createBtn").addEventListener("click", () => openModal(null));
+  document.getElementById("cancelCardBtn").addEventListener("click", closeModal);
+
+  // ---------- LISTA DE JOGADORES (todos os cadastrados no banco, inclusive importados) ----------
+  const playersListOverlay = document.getElementById("playersListOverlay");
+  const playersListItems = document.getElementById("playersListItems");
+  const playersListEmpty = document.getElementById("playersListEmpty");
+  const playersListCount = document.getElementById("playersListCount");
+  const playersSearchInput = document.getElementById("playersSearchInput");
+
+  function renderPlayersList(){
+    const query = playersSearchInput.value.trim().toLowerCase();
+    const all = PLAYER_DATA.slice().sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    const filtered = query ? all.filter(p => p.name.toLowerCase().includes(query)) : all;
+
+    playersListCount.textContent = `${filtered.length} de ${all.length} jogador(es)`;
+    playersListItems.innerHTML = "";
+    playersListEmpty.style.display = filtered.length ? "none" : "block";
+
+    filtered.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "player-row";
+      const posLabels = (p.positions || []).map(key => ZONES[key] ? ZONES[key].label : key).join(", ");
+      row.innerHTML = `
+        <img src="${p.photo || ''}" onerror="this.style.visibility='hidden'">
+        <div class="pr-info">
+          <div class="pr-name">${escapeHtml(p.name)}</div>
+          <div class="pr-meta">OVR ${p.overall} · ${escapeHtml(posLabels)}</div>
+        </div>
+        <button type="button" class="pr-edit">Editar</button>
+      `;
+      row.querySelector(".pr-edit").addEventListener("click", () => {
+        closePlayersList();
+        openModal(p.id);
+      });
+      playersListItems.appendChild(row);
+    });
+  }
+
+  function openPlayersList(){
+    playersSearchInput.value = "";
+    playersListOverlay.classList.add("open");
+    renderPlayersList();
+  }
+  function closePlayersList(){
+    playersListOverlay.classList.remove("open");
+  }
+
+  document.getElementById("listPlayersBtn").addEventListener("click", openPlayersList);
+  document.getElementById("closePlayersListBtn").addEventListener("click", closePlayersList);
+  playersListOverlay.addEventListener("click", (e) => { if (e.target === playersListOverlay) closePlayersList(); });
+  playersSearchInput.addEventListener("input", renderPlayersList);
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) closeModal();
+  });
+
+  deleteCardBtn.addEventListener("click", async () => {
+    if (!editingPlayerId) return;
+    const p = playerById(editingPlayerId);
+    if (!confirm(`Excluir "${p.name}" do sistema? Essa ação não pode ser desfeita.`)) return;
+    const idToDelete = editingPlayerId;
+    unmountCard(idToDelete);
+    const idx = PLAYER_DATA.findIndex(pl => pl.id === idToDelete);
+    if (idx !== -1) PLAYER_DATA.splice(idx, 1);
+    delete state.positions[idToDelete];
+    state.onField = state.onField.filter(id => id !== idToDelete);
+    topUpOnField();
+    await deletePlayerFromDB(idToDelete);
+    saveState();
+    Object.keys(cardEls).forEach(id => unmountCard(id));
+    PLAYER_DATA.forEach(p => mountCard(p));
+    renderAll(true);
+    closeModal();
+  });
+
+  function findFreeSpot(){
+    // procura um ponto livre dentro do campo, longe dos jogadores que estão em campo
+    const candidates = [];
+    for (let y = 8; y <= 92; y += 12) {
+      for (let x = 10; x <= 90; x += 14) {
+        candidates.push({ x, y });
+      }
+    }
+    for (const c of candidates) {
+      const tooClose = state.onField.some(id => {
+        const pos = state.positions[id];
+        if (!pos) return false;
+        return Math.hypot(c.x - pos.x, c.y - pos.y) < 9;
+      });
+      if (!tooClose) return c;
+    }
+    return { x: 50, y: 50 };
+  }
+
+  cardForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("inputName").value.trim();
+    const overall = Math.max(1, Math.min(120, parseInt(document.getElementById("inputOverall").value, 10) || 70));
+    const checked = Array.from(posChecks.querySelectorAll("input:checked")).map(c => c.value);
+    if (!name || checked.length === 0) {
+      alert("Preencha o nome e selecione ao menos uma posição.");
+      return;
+    }
+    const positions = checked.map(lbl => LABEL_TO_ZONEKEY[lbl]).filter(Boolean);
+    const rarityOverride = document.getElementById("inputRarity").value;
+
+    const photoFile = inputPhoto.files[0];
+    const badgeFile = inputBadge.files[0];
+    const [photoDataFromFile, badgeDataNew] = await Promise.all([
+      fileToDataUrl(photoFile),
+      fileToDataUrl(badgeFile)
+    ]);
+    // se o usuário rodou "remover fundo", usa a versão processada em vez do arquivo bruto
+    const photoDataNew = pendingPhotoOverride || photoDataFromFile;
+
+    if (editingPlayerId) {
+      // ---------- EDITAR JOGADOR EXISTENTE ----------
+      const idx = PLAYER_DATA.findIndex(pl => pl.id === editingPlayerId);
+      if (idx === -1) { closeModal(); return; }
+      const wasGol = PLAYER_DATA[idx].positions.includes("gol");
+      const isGolNow = positions.includes("gol");
+
+      const updated = {
+        id: editingPlayerId,
+        name,
+        overall,
+        positions,
+        photo: photoDataNew !== null ? photoDataNew : editingOriginalPhoto,
+        badge: badgeDataNew !== null ? badgeDataNew : editingOriginalBadge,
+        rarity: rarityOverride
+      };
+      PLAYER_DATA[idx] = updated;
+      await savePlayerToDB(updated);
+
+      if (isGolNow) {
+        state.positions[editingPlayerId] = { x: ZONES.gol.left, y: ZONES.gol.top };
+      } else if (wasGol && !isGolNow) {
+        state.positions[editingPlayerId] = findFreeSpot();
+      }
+      saveState();
+
+      unmountCard(editingPlayerId);
+      mountCard(updated);
+      updateCardVisual(editingPlayerId, true);
+
+      closeModal();
+      return;
+    }
+
+    // ---------- CRIAR NOVO JOGADOR ----------
+    const newPlayer = {
+      id: "p_" + Date.now(),
+      name,
+      overall,
+      positions,
+      photo: photoDataNew,
+      badge: badgeDataNew,
+      rarity: rarityOverride
+    };
+
+    PLAYER_DATA.push(newPlayer);
+    await savePlayerToDB(newPlayer);
+
+    const isGol = positions.includes("gol");
+    const hasGolOnField = state.onField.some(id => {
+      const pl = playerById(id);
+      return pl && pl.positions.includes("gol");
+    });
+    const canJoinField = state.onField.length < MAX_ON_FIELD && (!isGol || !hasGolOnField);
+
+    if (canJoinField) {
+      state.onField.push(newPlayer.id);
+      state.positions[newPlayer.id] = isGol
+        ? { x: ZONES.gol.left, y: ZONES.gol.top }
+        : findFreeSpot();
+    }
+    saveState();
+
+    mountCard(newPlayer);
+    updateCardVisual(newPlayer.id, true);
+    renderBenchMeta();
+
+    closeModal();
+  });
+
+  // ---------- EXPORTAR / IMPORTAR BACKUP COMPLETO (jogadores + músicas + tema + campo) ----------
+  const exportBtn = document.getElementById("exportBtn");
+  const importBtn = document.getElementById("importBtn");
+  const importFileInput = document.getElementById("importFileInput");
+
+  exportBtn.addEventListener("click", async () => {
+    const players = await loadPlayersFromDB();
+    const trackList = await loadAllTracksFromDB();
+    const musicSettings = await loadMediaFromDB("musicSettings");
+    const backup = {
+      appBackup: true,
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      players,
+      tracks: trackList,
+      musicSettings: musicSettings || null,
+      theme: localStorage.getItem(THEME_KEY) || "dia",
+      fieldState: state
+    };
+    const dataStr = JSON.stringify(backup, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    a.download = `campo_tatico_backup_${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  importBtn.addEventListener("click", () => importFileInput.click());
+
+  async function importPlayersArray(imported, merge){
+    if (!merge) {
+      // substituir tudo: apaga os atuais do banco
+      const current = await loadPlayersFromDB();
+      for (const p of current) await deletePlayerFromDB(p.id);
+      // também limpa cartas do campo e do banco
+      Object.keys(cardEls).forEach(id => unmountCard(id));
+      PLAYER_DATA.length = 0;
+      state.positions = {};
+      state.onField = [];
+    }
+
+    for (const p of imported) {
+      if (!p || !p.id) continue;
+      // evita conflito de id ao mesclar
+      let player = p;
+      if (merge && PLAYER_DATA.some(existing => existing.id === p.id)) {
+        player = { ...p, id: "p_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7) };
+      }
+      PLAYER_DATA.push(player);
+      await savePlayerToDB(player);
+    }
+
+    // recalcula quem entra em campo (máx. 11) e reposiciona; o restante vai pro banco
+    state.onField = autoSelectOnField();
+    state.positions = { ...state.positions, ...computeDefaultPositions(state.onField) };
+    saveState();
+
+    Object.keys(cardEls).forEach(id => unmountCard(id));
+    PLAYER_DATA.forEach(p => mountCard(p));
+    renderAll(false);
+  }
+
+  async function importTracksArray(importedTracks, musicSettings, merge){
+    if (!merge) {
+      // substitui tudo: apaga faixas atuais do banco (mas preserva a chave "musicSettings", tratada à parte)
+      const currentTracks = await loadAllTracksFromDB();
+      for (const t of currentTracks) await deleteMediaFromDB(t.id);
+      bgAudioEl.pause();
+      bgAudioEl.removeAttribute("src");
+      activeTrackId = null;
+      musicPlayBtn.style.display = "none";
+      setTrackLabel(null);
+      tracks = [];
+    }
+
+    for (const t of importedTracks) {
+      if (!t || !t.id || !t.dataUrl) continue;
+      let track = t;
+      if (merge && tracks.some(existing => existing.id === t.id)) {
+        track = { ...t, id: "track_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7) };
+      }
+      await saveMediaToDB(track);
+      const idx = tracks.findIndex(x => x.id === track.id);
+      if (idx !== -1) tracks[idx] = track; else tracks.push(track);
+    }
+
+    // restaura a faixa ativa, se houver e ainda existir depois da importação
+    if (musicSettings && musicSettings.activeTrackId) {
+      const t = trackById(musicSettings.activeTrackId);
+      if (t) {
+        activeTrackId = t.id;
+        bgAudioEl.src = t.dataUrl;
+        bgAudioEl.currentTime = t.trimStart || 0;
+        setTrackLabel(t.name);
+        musicPlayBtn.style.display = "inline-block";
+        setPlayIcon(false);
+        await saveMediaToDB({ id: "musicSettings", activeTrackId: t.id });
+      }
+    }
+    renderTrackList();
+  }
+
+  importFileInput.addEventListener("change", async () => {
+    const file = importFileInput.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+
+      // Formato novo: backup completo { appBackup: true, players, tracks, musicSettings, theme, fieldState }
+      // Formato antigo: um array simples só com jogadores (compatibilidade com backups anteriores)
+      const isFullBackup = parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.appBackup;
+      const importedPlayers = isFullBackup ? (parsed.players || []) : parsed;
+      const importedTracks = isFullBackup ? (parsed.tracks || []) : [];
+      const importedMusicSettings = isFullBackup ? parsed.musicSettings : null;
+
+      if (!Array.isArray(importedPlayers)) throw new Error("Formato inválido: esperado um array de jogadores.");
+
+      const trackInfo = importedTracks.length ? ` e ${importedTracks.length} faixa(s) de música` : "";
+      const merge = confirm(
+        `Encontrados ${importedPlayers.length} jogador(es)${trackInfo} no arquivo.\n\nOK = Adicionar aos já existentes\nCancelar = Substituir tudo que já existe`
+      );
+
+      await importPlayersArray(importedPlayers, merge);
+      if (isFullBackup) {
+        await importTracksArray(importedTracks, importedMusicSettings, merge);
+        if (parsed.theme) {
+          applyTheme(parsed.theme);
+        }
+      }
+
+      alert(`Importação concluída: ${importedPlayers.length} jogador(es)${trackInfo} processado(s).`);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao importar arquivo: " + err.message);
+    } finally {
+      importFileInput.value = "";
+    }
+  });
+
+  // ---------- TEMA DE CAMPO (dia / noite / chuva) ----------
+  const THEME_KEY = "tacticalFieldTheme_v1";
+  const themeSelect = document.getElementById("themeSelect");
+  const rainLayer = document.getElementById("rainLayer");
+  let rainBuilt = false;
+
+  function buildRain(){
+    if (rainBuilt) return;
+    rainBuilt = true;
+    const dropCount = 60;
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < dropCount; i++){
+      const d = document.createElement("div");
+      d.className = "drop";
+      d.style.left = (Math.random() * 100) + "%";
+      const duration = 0.5 + Math.random() * 0.5;
+      d.style.animationDuration = duration.toFixed(2) + "s";
+      d.style.animationDelay = (Math.random() * duration).toFixed(2) + "s";
+      d.style.opacity = (0.4 + Math.random() * 0.5).toFixed(2);
+      frag.appendChild(d);
+    }
+    rainLayer.appendChild(frag);
+  }
+
+  function applyTheme(theme){
+    field.classList.remove("theme-dia", "theme-noite", "theme-chuva");
+    field.classList.add("theme-" + theme);
+    if (theme === "chuva") buildRain();
+    themeSelect.value = theme;
+    localStorage.setItem(THEME_KEY, theme);
+  }
+
+  themeSelect.addEventListener("change", () => applyTheme(themeSelect.value));
+
+  // ---------- MÚSICA DE FUNDO (múltiplas faixas + recorte, tela de escalação) ----------
+  // Cada faixa é lida da galeria de música do celular, convertida em data URL e
+  // guardada no IndexedDB junto com um trecho (trimStart/trimEnd em segundos).
+  // Como não dá pra "cortar" o arquivo de áudio de verdade sem reprocessá-lo,
+  // o recorte é feito na reprodução: o player pula automaticamente de volta pro
+  // início do trecho sempre que chega no fim dele, criando um loop só daquela parte.
+  const musicPickBtn = document.getElementById("musicPickBtn");
+  const musicPlayBtn = document.getElementById("musicPlayBtn");
+  const musicTrackLabel = document.getElementById("musicTrackLabel");
+  const musicModalOverlay = document.getElementById("musicModalOverlay");
+  const addTrackBtn = document.getElementById("addTrackBtn");
+  const musicFileInput = document.getElementById("musicFileInput");
+  const trimEditor = document.getElementById("trimEditor");
+  const trackNameInput = document.getElementById("trackNameInput");
+  const trimStartRange = document.getElementById("trimStartRange");
+  const trimEndRange = document.getElementById("trimEndRange");
+  const trimStartLabel = document.getElementById("trimStartLabel");
+  const trimEndLabel = document.getElementById("trimEndLabel");
+  const previewTrimBtn = document.getElementById("previewTrimBtn");
+  const saveTrackBtn = document.getElementById("saveTrackBtn");
+  const cancelTrimBtn = document.getElementById("cancelTrimBtn");
+  const closeMusicModalBtn = document.getElementById("closeMusicModalBtn");
+  const trackListEl = document.getElementById("trackList");
+  const trackListEmptyEl = document.getElementById("trackListEmpty");
+
+  const bgAudioEl = document.createElement("audio");
+  bgAudioEl.style.display = "none";
+  document.body.appendChild(bgAudioEl);
+  const previewAudioEl = document.createElement("audio");
+  previewAudioEl.style.display = "none";
+  document.body.appendChild(previewAudioEl);
+
+  let tracks = []; // [{id, name, dataUrl, trimStart, trimEnd}]
+  let activeTrackId = null;
+  let editingTrackId = null; // se estiver editando o recorte de uma faixa já salva
+  let pendingFileDataUrl = null; // dataUrl da faixa recém-escolhida, ainda não salva
+
+  async function loadAllTracksFromDB(){
+    try {
+      const db = await playersDBPromise;
+      const all = await new Promise((resolve, reject) => {
+        const tx = db.transaction(MEDIA_STORE, "readonly");
+        const req = tx.objectStore(MEDIA_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+      return all.filter(item => item.id !== "musicSettings");
+    } catch (e) {
+      console.error("Erro ao carregar faixas do armazenamento:", e);
+      return [];
+    }
+  }
+
+  async function saveMediaToDB(obj){
+    const db = await playersDBPromise;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(MEDIA_STORE, "readwrite");
+      tx.objectStore(MEDIA_STORE).put(obj);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function deleteMediaFromDB(id){
+    const db = await playersDBPromise;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(MEDIA_STORE, "readwrite");
+      tx.objectStore(MEDIA_STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  function fmtTime(sec){
+    sec = Math.max(0, Math.round(sec || 0));
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return m + ":" + String(s).padStart(2, "0");
+  }
+
+  function setTrackLabel(name){
+    if (!name) { musicTrackLabel.style.display = "none"; musicTrackLabel.textContent = ""; return; }
+    musicTrackLabel.textContent = name;
+    musicTrackLabel.style.display = "block";
+  }
+
+  function setPlayIcon(playing){
+    musicPlayBtn.textContent = playing ? "Pausar" : "Tocar";
+    musicPlayBtn.classList.toggle("playing", playing);
+  }
+
+  function trackById(id){ return tracks.find(t => t.id === id); }
+
+  // ---------- reprodução principal (com recorte em loop) ----------
+  bgAudioEl.addEventListener("timeupdate", () => {
+    const t = trackById(activeTrackId);
+    if (!t) return;
+    const end = t.trimEnd || bgAudioEl.duration || 0;
+    if (bgAudioEl.currentTime >= end - 0.05) {
+      bgAudioEl.currentTime = t.trimStart || 0;
+    }
+  });
+  bgAudioEl.addEventListener("play", () => setPlayIcon(true));
+  bgAudioEl.addEventListener("pause", () => setPlayIcon(false));
+
+  async function playTrack(id){
+    const t = trackById(id);
+    if (!t) return;
+    activeTrackId = id;
+    bgAudioEl.src = t.dataUrl;
+    bgAudioEl.currentTime = t.trimStart || 0;
+    setTrackLabel(t.name);
+    musicPlayBtn.style.display = "inline-block";
+    try { await bgAudioEl.play(); } catch (e) { setPlayIcon(false); }
+    await saveMediaToDB({ id: "musicSettings", activeTrackId: id });
+    renderTrackList();
+  }
+
+  musicPlayBtn.addEventListener("click", async () => {
+    if (!activeTrackId) return;
+    if (bgAudioEl.paused) { try { await bgAudioEl.play(); } catch (e) {} }
+    else bgAudioEl.pause();
+  });
+
+  // ---------- modal de músicas ----------
+  function openMusicModal(){
+    musicModalOverlay.classList.add("open");
+    renderTrackList();
+  }
+  function closeMusicModal(){
+    musicModalOverlay.classList.remove("open");
+    hideTrimEditor();
+  }
+  musicPickBtn.addEventListener("click", openMusicModal);
+  closeMusicModalBtn.addEventListener("click", closeMusicModal);
+  musicModalOverlay.addEventListener("click", (e) => { if (e.target === musicModalOverlay) closeMusicModal(); });
+
+  function renderTrackList(){
+    trackListEl.innerHTML = "";
+    trackListEmptyEl.style.display = tracks.length ? "none" : "block";
+    tracks.forEach(t => {
+      const row = document.createElement("div");
+      row.className = "track-item" + (t.id === activeTrackId ? " active" : "");
+      const isPlayingThis = t.id === activeTrackId && !bgAudioEl.paused;
+      row.innerHTML = `
+        <button class="track-select" data-action="select">${isPlayingThis ? "Pausar" : "Tocar"}</button>
+        <div class="track-info">
+          <div class="t-name">${escapeHtml(t.name)}</div>
+          <div class="t-range">${fmtTime(t.trimStart)} – ${fmtTime(t.trimEnd)}</div>
+        </div>
+        <div class="track-actions">
+          <button data-action="edit">Editar</button>
+          <button data-action="delete">Excluir</button>
+        </div>
+      `;
+      row.querySelector('[data-action="select"]').addEventListener("click", () => {
+        if (t.id === activeTrackId && !bgAudioEl.paused) { bgAudioEl.pause(); renderTrackList(); }
+        else playTrack(t.id);
+      });
+      row.querySelector('[data-action="edit"]').addEventListener("click", () => openTrimEditorForExisting(t));
+      row.querySelector('[data-action="delete"]').addEventListener("click", async () => {
+        if (!confirm(`Excluir a faixa "${t.name}"?`)) return;
+        await deleteMediaFromDB(t.id);
+        tracks = tracks.filter(x => x.id !== t.id);
+        if (activeTrackId === t.id) {
+          bgAudioEl.pause();
+          bgAudioEl.removeAttribute("src");
+          activeTrackId = null;
+          musicPlayBtn.style.display = "none";
+          setTrackLabel(null);
+          await saveMediaToDB({ id: "musicSettings", activeTrackId: null });
+        }
+        renderTrackList();
+      });
+      trackListEl.appendChild(row);
+    });
+  }
+
+  // ---------- editor de recorte ----------
+  function hideTrimEditor(){
+    trimEditor.style.display = "none";
+    previewAudioEl.pause();
+    pendingFileDataUrl = null;
+    editingTrackId = null;
+  }
+
+  function showTrimEditorWithDuration(duration, defaults){
+    trimStartRange.min = 0; trimStartRange.max = Math.floor(duration);
+    trimEndRange.min = 0; trimEndRange.max = Math.floor(duration);
+    trimStartRange.value = Math.min(defaults.start, duration);
+    trimEndRange.value = Math.min(defaults.end, duration);
+    trackNameInput.value = defaults.name;
+    updateTrimLabels();
+    trimEditor.style.display = "block";
+  }
+
+  function updateTrimLabels(){
+    trimStartLabel.textContent = fmtTime(trimStartRange.value);
+    trimEndLabel.textContent = fmtTime(trimEndRange.value);
+  }
+
+  trimStartRange.addEventListener("input", () => {
+    if (Number(trimStartRange.value) >= Number(trimEndRange.value)) {
+      trimStartRange.value = Math.max(0, Number(trimEndRange.value) - 1);
+    }
+    updateTrimLabels();
+  });
+  trimEndRange.addEventListener("input", () => {
+    if (Number(trimEndRange.value) <= Number(trimStartRange.value)) {
+      trimEndRange.value = Number(trimStartRange.value) + 1;
+    }
+    updateTrimLabels();
+  });
+
+  addTrackBtn.addEventListener("click", () => musicFileInput.click());
+
+  musicFileInput.addEventListener("change", async () => {
+    const file = musicFileInput.files[0];
+    if (!file) return;
+    const dataUrl = await fileToDataUrl(file);
+    pendingFileDataUrl = dataUrl;
+    editingTrackId = null;
+    const tempAudio = new Audio();
+    tempAudio.src = dataUrl;
+    tempAudio.addEventListener("loadedmetadata", () => {
+      const dur = tempAudio.duration || 30;
+      showTrimEditorWithDuration(dur, {
+        start: 0,
+        end: Math.min(30, dur),
+        name: file.name.replace(/\.[^/.]+$/, "")
+      });
+    });
+    musicFileInput.value = "";
+  });
+
+  function openTrimEditorForExisting(t){
+    pendingFileDataUrl = t.dataUrl;
+    editingTrackId = t.id;
+    const tempAudio = new Audio();
+    tempAudio.src = t.dataUrl;
+    tempAudio.addEventListener("loadedmetadata", () => {
+      const dur = tempAudio.duration || t.trimEnd || 30;
+      showTrimEditorWithDuration(dur, { start: t.trimStart || 0, end: t.trimEnd || Math.min(30, dur), name: t.name });
+    });
+  }
+
+  previewTrimBtn.addEventListener("click", async () => {
+    if (!pendingFileDataUrl) return;
+    if (!previewAudioEl.paused && previewAudioEl.src === pendingFileDataUrl) {
+      previewAudioEl.pause();
+      previewTrimBtn.textContent = "Tocar prévia";
+      return;
+    }
+    previewAudioEl.src = pendingFileDataUrl;
+    previewAudioEl.currentTime = Number(trimStartRange.value);
+    try { await previewAudioEl.play(); previewTrimBtn.textContent = "Pausar prévia"; } catch (e) {}
+  });
+  previewAudioEl.addEventListener("timeupdate", () => {
+    if (Number(previewAudioEl.currentTime) >= Number(trimEndRange.value) - 0.05) {
+      previewAudioEl.currentTime = Number(trimStartRange.value);
+    }
+  });
+  previewAudioEl.addEventListener("pause", () => { previewTrimBtn.textContent = "Tocar prévia"; });
+
+  saveTrackBtn.addEventListener("click", async () => {
+    const name = trackNameInput.value.trim() || "Faixa sem nome";
+    const trimStart = Number(trimStartRange.value);
+    const trimEnd = Number(trimEndRange.value);
+    const id = editingTrackId || ("track_" + Date.now());
+    const track = { id, name, dataUrl: pendingFileDataUrl, trimStart, trimEnd };
+    await saveMediaToDB(track);
+    const idx = tracks.findIndex(t => t.id === id);
+    if (idx !== -1) tracks[idx] = track; else tracks.push(track);
+    if (activeTrackId === id) {
+      // atualiza o player se a faixa em uso teve o recorte editado
+      bgAudioEl.currentTime = trimStart;
+    }
+    hideTrimEditor();
+    renderTrackList();
+
+    // Se nenhuma faixa está tocando/selecionada ainda, torna esta a faixa ativa
+    // e persiste isso no banco — sem isso a escolha do usuário nunca era salva
+    // e ao reabrir o app nenhuma música estava configurada.
+    if (!activeTrackId) {
+      await playTrack(id);
+    }
+  });
+
+  cancelTrimBtn.addEventListener("click", hideTrimEditor);
+
+  async function restoreSavedMusic(){
+    tracks = await loadAllTracksFromDB();
+    const settings = await loadMediaFromDB("musicSettings");
+    if (settings && settings.activeTrackId) {
+      const t = trackById(settings.activeTrackId);
+      if (t) {
+        activeTrackId = t.id;
+        bgAudioEl.src = t.dataUrl;
+        bgAudioEl.currentTime = t.trimStart || 0;
+        setTrackLabel(t.name);
+        musicPlayBtn.style.display = "inline-block";
+        setPlayIcon(false); // navegador exige um toque do usuário pra tocar de novo
+      }
+    }
+  }
+
+  async function loadMediaFromDB(id){
+    try {
+      const db = await playersDBPromise;
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(MEDIA_STORE, "readonly");
+        const req = tx.objectStore(MEDIA_STORE).get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.error("Erro ao carregar mídia do armazenamento:", e);
+      return null;
+    }
+  }
+
+  // ---------- LEILÃO (100% local, armazenado no IndexedDB deste dispositivo/navegador) ----------
+  // identidade local: um id de dispositivo (pra saber quem é o dono/vencedor) e um nome de exibição
+  const AUCTION_CLIENT_ID_KEY = "leilaoClientId";
+  const AUCTION_USER_NAME_KEY = "leilaoUserName";
+
+  function getClientId(){
+    let id = localStorage.getItem(AUCTION_CLIENT_ID_KEY);
+    if (!id) {
+      id = "c_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
+      localStorage.setItem(AUCTION_CLIENT_ID_KEY, id);
+    }
+    return id;
+  }
+
+  function getUserName(){
+    let name = localStorage.getItem(AUCTION_USER_NAME_KEY);
+    if (!name) {
+      name = (prompt("Como você quer ser identificado no leilão?") || "").trim();
+      if (!name) name = "Jogador" + Math.floor(Math.random() * 9000 + 1000);
+      localStorage.setItem(AUCTION_USER_NAME_KEY, name);
+    }
+    return name;
+  }
+
+  const CLIENT_ID = getClientId();
+
+  let auctionsCache = {};
+
+  const auctionOverlay = document.getElementById("auctionOverlay");
+  const auctionListItems = document.getElementById("auctionListItems");
+  const auctionListEmpty = document.getElementById("auctionListEmpty");
+  const auctionSyncStatus = document.getElementById("auctionSyncStatus");
+  const createAuctionOverlay = document.getElementById("createAuctionOverlay");
+  const auctionPlayerSelect = document.getElementById("auctionPlayerSelect");
+
+  function fmtMoney(n){
+    return "R$ " + Number(n || 0).toLocaleString("pt-BR");
+  }
+
+  function fmtTimeLeft(endsAt){
+    const ms = endsAt - Date.now();
+    if (ms <= 0) return "Encerrado";
+    const totalMin = Math.floor(ms / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    if (h > 0) return `${h}h ${m}min`;
+    const s = Math.floor((ms % 60000) / 1000);
+    return m > 0 ? `${m}min ${s}s` : `${s}s`;
+  }
+
+  // remove um jogador do plantel local (usado ao colocar em leilão, já que a carta
+  // "sai" do time enquanto está listada — se ninguém arrematar, ela some de vez;
+  // se cancelar sem lances, ela volta a partir do snapshot salvo no leilão)
+  async function removePlayerFromRoster(id){
+    unmountCard(id);
+    const idx = PLAYER_DATA.findIndex(pl => pl.id === id);
+    if (idx !== -1) PLAYER_DATA.splice(idx, 1);
+    delete state.positions[id];
+    state.onField = state.onField.filter(pid => pid !== id);
+    topUpOnField();
+    await deletePlayerFromDB(id);
+    saveState();
+    Object.keys(cardEls).forEach(pid => unmountCard(pid));
+    PLAYER_DATA.forEach(p => mountCard(p));
+    renderAll(true);
+  }
+
+  // recria localmente um jogador a partir do snapshot salvo no leilão (usado ao
+  // resgatar um jogador arrematado, ou ao cancelar um leilão sem lances)
+  async function addPlayerSnapshotToRoster(snapshot){
+    const newId = "p_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+    const player = { ...snapshot, id: newId };
+    PLAYER_DATA.push(player);
+    await savePlayerToDB(player);
+    saveState();
+    mountCard(player);
+    renderAll(true);
+  }
+
+  function openAuctionOverlay(){
+    auctionOverlay.classList.add("open");
+    renderAuctions();
+  }
+  function closeAuctionOverlay(){
+    auctionOverlay.classList.remove("open");
+  }
+  document.getElementById("openAuctionBtn").addEventListener("click", openAuctionOverlay);
+  document.getElementById("closeAuctionBtn").addEventListener("click", closeAuctionOverlay);
+  auctionOverlay.addEventListener("click", (e) => { if (e.target === auctionOverlay) closeAuctionOverlay(); });
+
+  function openCreateAuctionModal(){
+    auctionPlayerSelect.innerHTML = "";
+    if (!PLAYER_DATA.length) {
+      alert("Você não tem nenhum jogador cadastrado pra colocar em leilão.");
+      return;
+    }
+    PLAYER_DATA.slice().sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      const posLabels = (p.positions || []).map(key => ZONES[key] ? ZONES[key].label : key).join(", ");
+      opt.textContent = `${p.name} (OVR ${p.overall} · ${posLabels})`;
+      auctionPlayerSelect.appendChild(opt);
+    });
+    document.getElementById("auctionStartBid").value = "";
+    document.getElementById("auctionBuyNow").value = "";
+    document.getElementById("auctionDuration").value = "2";
+    createAuctionOverlay.classList.add("open");
+  }
+  function closeCreateAuctionModal(){
+    createAuctionOverlay.classList.remove("open");
+  }
+  document.getElementById("createAuctionBtn").addEventListener("click", openCreateAuctionModal);
+  document.getElementById("cancelCreateAuctionBtn").addEventListener("click", closeCreateAuctionModal);
+  createAuctionOverlay.addEventListener("click", (e) => { if (e.target === createAuctionOverlay) closeCreateAuctionModal(); });
+
+  document.getElementById("submitAuctionBtn").addEventListener("click", async () => {
+    const playerId = auctionPlayerSelect.value;
+    const player = playerById(playerId);
+    if (!player) { alert("Selecione um jogador."); return; }
+    const startBid = parseInt(document.getElementById("auctionStartBid").value, 10);
+    const buyNowRaw = document.getElementById("auctionBuyNow").value;
+    const buyNow = buyNowRaw ? parseInt(buyNowRaw, 10) : null;
+    const hours = parseFloat(document.getElementById("auctionDuration").value);
+    if (!startBid || startBid <= 0) { alert("Informe um lance inicial válido."); return; }
+    if (buyNow && buyNow <= startBid) { alert("O valor de compra já precisa ser maior que o lance inicial."); return; }
+    if (!hours || hours <= 0) { alert("Informe uma duração válida."); return; }
+
+    const userName = getUserName();
+    const now = Date.now();
+    const id = "a_" + now + "_" + Math.random().toString(36).slice(2, 9);
+    const snapshot = {
+      name: player.name,
+      overall: player.overall,
+      positions: player.positions,
+      rarity: player.rarity || "auto",
+      photo: player.photo || null,
+      badge: player.badge || null
+    };
+    const auction = {
+      id,
+      createdAt: now,
+      endsAt: now + hours * 3600 * 1000,
+      sellerClientId: CLIENT_ID,
+      sellerName: userName,
+      player: snapshot,
+      startBid,
+      buyNowPrice: buyNow,
+      currentBid: null,
+      currentBidderName: null,
+      currentBidderClientId: null,
+      status: "ativo",
+      winnerClientId: null,
+      winnerName: null,
+      claimed: false
+    };
+    auctionsCache[id] = auction;
+    await saveAuctionToDB(auction);
+
+    await removePlayerFromRoster(playerId);
+    closeCreateAuctionModal();
+    renderAuctions();
+  });
+
+  async function placeBid(auctionId, amount){
+    const cur = auctionsCache[auctionId];
+    if (!cur || cur.status !== "ativo") return;
+    if (cur.endsAt <= Date.now()) return;
+    const minValid = cur.currentBid ? cur.currentBid + 1 : cur.startBid;
+    if (amount < minValid) {
+      alert("Esse lance não foi aceito — o valor mínimo é " + fmtMoney(minValid) + ".");
+      return;
+    }
+    const userName = getUserName();
+    cur.currentBid = amount;
+    cur.currentBidderName = userName;
+    cur.currentBidderClientId = CLIENT_ID;
+    await saveAuctionToDB(cur);
+    renderAuctions();
+  }
+
+  async function buyNow(auctionId){
+    const cur = auctionsCache[auctionId];
+    if (!cur || cur.status !== "ativo" || !cur.buyNowPrice) return;
+    if (cur.endsAt <= Date.now()) return;
+    if (!confirm("Confirmar compra imediata deste jogador?")) return;
+    const userName = getUserName();
+    cur.status = "vendido";
+    cur.currentBid = cur.buyNowPrice;
+    cur.currentBidderName = userName;
+    cur.currentBidderClientId = CLIENT_ID;
+    cur.winnerClientId = CLIENT_ID;
+    cur.winnerName = userName;
+    await saveAuctionToDB(cur);
+    renderAuctions();
+  }
+
+  async function cancelAuction(auctionId){
+    if (!confirm("Cancelar este leilão e recuperar o jogador?")) return;
+    const cur = auctionsCache[auctionId];
+    if (!cur || cur.sellerClientId !== CLIENT_ID || cur.currentBid) return;
+    await addPlayerSnapshotToRoster(cur.player);
+    delete auctionsCache[auctionId];
+    await deleteAuctionFromDB(auctionId);
+    renderAuctions();
+  }
+
+  async function claimAuction(auctionId){
+    const cur = auctionsCache[auctionId];
+    if (!cur || cur.winnerClientId !== CLIENT_ID || cur.claimed) return;
+    await addPlayerSnapshotToRoster(cur.player);
+    delete auctionsCache[auctionId];
+    await deleteAuctionFromDB(auctionId);
+    renderAuctions();
+  }
+
+  function auctionCardHtml(a){
+    const rarity = getRarity(a.player.overall, a.player.rarity);
+    const rarityLabel = RARITY_LABEL[rarity] || "Bronze";
+    const posLabels = (a.player.positions || []).map(key => ZONES[key] ? ZONES[key].label : key).join(", ");
+    const photoBg = a.player.photo ? `<div class="ac-photo" style="background-image:url('${a.player.photo}')"></div>` : "";
+    const timeLeft = fmtTimeLeft(a.endsAt);
+    const isEnded = a.status !== "ativo" || a.endsAt <= Date.now();
+    const isMine = a.sellerClientId === CLIENT_ID;
+    const iWon = a.winnerClientId === CLIENT_ID;
+    const canCancel = isMine && a.status === "ativo" && !a.currentBid;
+
+    let statusBlock = "";
+    let actionsBlock = "";
+
+    if (!isEnded) {
+      const minNext = a.currentBid ? a.currentBid + 1 : a.startBid;
+      statusBlock = `
+        <div class="ac-line">Lance atual: <b>${a.currentBid ? fmtMoney(a.currentBid) : fmtMoney(a.startBid) + " (inicial)"}</b></div>
+        ${a.buyNowPrice ? `<div class="ac-line">Compra já: <b>${fmtMoney(a.buyNowPrice)}</b></div>` : ""}
+        <div class="ac-timer${(a.endsAt - Date.now()) < 15*60*1000 ? " ending" : ""}">Expira em: ${timeLeft}</div>
+      `;
+      actionsBlock = `
+        <div class="ac-actions">
+          <input type="number" class="ac-bid-input" placeholder="${minNext}" min="${minNext}">
+          <button class="ac-bid-btn" data-action="bid">Dar lance</button>
+          ${a.buyNowPrice ? `<button class="ac-buynow-btn" data-action="buynow">Comprar já</button>` : ""}
+          ${canCancel ? `<button class="ac-cancel-btn" data-action="cancel">Cancelar</button>` : ""}
+        </div>
+      `;
+    } else {
+      const sold = a.status === "vendido" || !!a.winnerClientId;
+      statusBlock = sold
+        ? `<div class="ac-status-line">Vendido para ${escapeHtml(a.winnerName || "?")} por ${fmtMoney(a.currentBid)}</div>`
+        : `<div class="ac-status-line">Encerrado sem lances</div>`;
+      if (iWon && !a.claimed) {
+        actionsBlock = `<div class="ac-actions"><button class="ac-claim-btn" data-action="claim">Resgatar jogador</button></div>`;
+      } else if (isMine && !sold) {
+        actionsBlock = `<div class="ac-actions"><button class="ac-cancel-btn" data-action="cancel">Recuperar jogador</button></div>`;
+      }
+    }
+
+    return `
+      <div class="auction-card${isEnded ? (a.status === "vendido" || a.winnerClientId ? " sold" : " expired") : ""}" data-auction-id="${a.id}">
+        <div class="ac-mini rarity-${rarity}">
+          ${photoBg}
+          <div class="ac-corner-ovr">${a.player.overall}</div>
+          <div class="ac-corner-pos">${escapeHtml(posLabels.split(", ")[0] || "")}</div>
+          <div class="ac-name">${escapeHtml(a.player.name)}</div>
+        </div>
+        <div class="ac-info">
+          <div class="ac-rarity rarity-${rarity}">${rarityLabel}</div>
+          ${statusBlock}
+          <div class="ac-seller">Vendedor: ${escapeHtml(a.sellerName || "?")}${isMine ? " (você)" : ""}</div>
+          ${actionsBlock}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAuctions(){
+    const list = Object.values(auctionsCache).sort((a, b) => {
+      const aEnded = a.status !== "ativo" || a.endsAt <= Date.now();
+      const bEnded = b.status !== "ativo" || b.endsAt <= Date.now();
+      if (aEnded !== bEnded) return aEnded ? 1 : -1;
+      return a.endsAt - b.endsAt;
+    });
+    auctionListEmpty.style.display = list.length ? "none" : "block";
+    auctionListItems.innerHTML = list.map(auctionCardHtml).join("");
+
+    auctionListItems.querySelectorAll(".auction-card").forEach(cardEl => {
+      const id = cardEl.dataset.auctionId;
+      const bidBtn = cardEl.querySelector('[data-action="bid"]');
+      const buyBtn = cardEl.querySelector('[data-action="buynow"]');
+      const cancelBtn = cardEl.querySelector('[data-action="cancel"]');
+      const claimBtn = cardEl.querySelector('[data-action="claim"]');
+      if (bidBtn) {
+        bidBtn.addEventListener("click", () => {
+          const input = cardEl.querySelector(".ac-bid-input");
+          const amount = parseInt(input.value, 10);
+          if (!amount || amount <= 0) { alert("Informe um valor de lance."); return; }
+          placeBid(id, amount);
+        });
+      }
+      if (buyBtn) buyBtn.addEventListener("click", () => buyNow(id));
+      if (cancelBtn) cancelBtn.addEventListener("click", () => cancelAuction(id));
+      if (claimBtn) claimBtn.addEventListener("click", () => claimAuction(id));
+    });
+  }
+
+  async function loadAuctionsIntoCache(){
+    const list = await loadAuctionsFromDB();
+    auctionsCache = {};
+    list.forEach(a => { auctionsCache[a.id] = a; });
+  }
+
+  async function initAuctions(){
+    auctionSyncStatus.textContent = "Leilão local (IndexedDB)";
+    await loadAuctionsIntoCache();
+    if (auctionOverlay.classList.contains("open")) renderAuctions();
+  }
+
+  // re-renderiza a cada segundo pra manter o contador "expira em" atualizado
+  setInterval(() => {
+    if (auctionOverlay.classList.contains("open")) renderAuctions();
+  }, 1000);
+
+  // ---------- INIT ----------
+  async function init(){
+    const players = await loadPlayersFromDB();
+    PLAYER_DATA.push(...players);
+    loadState();
+    loadFormationsFromStorage();
+    populateFormationSelect(state.formation);
+    buildCards();
+    renderAll(false);
+    applyTheme(localStorage.getItem(THEME_KEY) || "dia");
+    await restoreSavedMusic();
+    await initAuctions();
+  }
+  init();
+
+})();
+</script>
+<!-- =========================================================
+     MENU INICIAL — HTML ADICIONADO (camada sobre o jogo existente)
+     ========================================================= -->
+
+<!-- Tela 1: Menu Principal -->
+<div id="mainMenuScreen" class="menu-screen">
+  <div class="menu-inner">
+    <div class="menu-logo">
+      <div class="menu-logo-icon">⚽</div>
+      <div class="menu-logo-title">DRAFT 26</div>
+      <div class="menu-logo-sub">FUTEBOL DE CARTAS</div>
+    </div>
+
+    <button type="button" class="menu-btn menu-btn-primary" id="menuBtnJogar">
+      <span class="menu-btn-icon">▶</span> Jogar
+    </button>
+    <button type="button" class="menu-btn" id="menuBtnElenco">
+      <span class="menu-btn-icon">👥</span> Meu Elenco
+    </button>
+    <button type="button" class="menu-btn" id="menuBtnMercado">
+      <span class="menu-btn-icon">🔨</span> Mercado
+    </button>
+    <button type="button" class="menu-btn" id="menuBtnCompeticoes">
+      <span class="menu-btn-icon">🏆</span> Competições
+    </button>
+    <button type="button" class="menu-btn" id="menuBtnEstatisticas">
+      <span class="menu-btn-icon">📊</span> Estatísticas
+    </button>
+    <button type="button" class="menu-btn" id="menuBtnConfiguracoes">
+      <span class="menu-btn-icon">⚙</span> Configurações
+    </button>
+  </div>
+</div>
+
+<!-- Tela 2: Submenu Jogar -->
+<div id="playMenuScreen" class="menu-screen">
+  <div class="menu-inner">
+    <div class="menu-screen-title">Jogar</div>
+    <button type="button" class="menu-btn menu-btn-primary" id="menuBtnPartidaRapida">
+      <span class="menu-btn-icon">⚽</span> Partida Rápida
+    </button>
+    <button type="button" class="menu-btn menu-btn-disabled" id="menuBtnOnline" disabled>
+      <span class="menu-btn-icon">🌐</span> Online (Em breve)
+    </button>
+    <button type="button" class="menu-btn" id="menuBtnVoltarJogar">
+      <span class="menu-btn-icon">⬅</span> Voltar
+    </button>
+  </div>
+</div>
+
+<!-- Tela 3: Competições (placeholder simples) -->
+<div id="competitionsScreen" class="menu-screen">
+  <div class="menu-inner">
+    <div class="menu-screen-title">🏆 Competições</div>
+    <p style="color:#8aa0ad; text-align:center; font-size:14px;">
+      Em breve você poderá disputar campeonatos e copas com o seu elenco.
+    </p>
+    <button type="button" class="menu-btn" id="menuBtnVoltarCompeticoes">
+      <span class="menu-btn-icon">⬅</span> Voltar
+    </button>
+  </div>
+</div>
+
+<!-- Tela 4: Estatísticas -->
+<div id="statsScreen" class="menu-screen">
+  <div class="menu-inner">
+    <div class="menu-screen-title">📊 Estatísticas</div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value" id="statPartidas">0</div><div class="stat-label">Partidas</div></div>
+      <div class="stat-card"><div class="stat-value" id="statVitorias">0</div><div class="stat-label">Vitórias</div></div>
+      <div class="stat-card"><div class="stat-value" id="statEmpates">0</div><div class="stat-label">Empates</div></div>
+      <div class="stat-card"><div class="stat-value" id="statDerrotas">0</div><div class="stat-label">Derrotas</div></div>
+      <div class="stat-card"><div class="stat-value" id="statGols">0</div><div class="stat-label">Gols</div></div>
+      <div class="stat-card"><div class="stat-value" id="statAssistencias">0</div><div class="stat-label">Assistências</div></div>
+    </div>
+    <div class="stat-card" style="width:100%;">
+      <div class="stat-value" id="statMelhorJogador" style="font-size:16px;">—</div>
+      <div class="stat-label">Melhor jogador</div>
+    </div>
+    <button type="button" class="menu-btn" id="menuBtnVoltarStats" style="margin-top:10px;">
+      <span class="menu-btn-icon">⬅</span> Voltar
+    </button>
+  </div>
+</div>
+
+<!-- Tela 5: Configurações -->
+<div id="settingsScreen" class="menu-screen">
+  <div class="menu-inner">
+    <div class="menu-screen-title">⚙ Configurações</div>
+
+    <div class="settings-row">
+      <label>Volume</label>
+      <input type="range" id="menuVolumeRange" min="0" max="100" value="80">
+    </div>
+
+    <div class="settings-row">
+      <label>Tema</label>
+      <div class="settings-embed-slot" id="settingsThemeSlot"></div>
+    </div>
+
+    <div class="settings-row">
+      <label>Música</label>
+      <div class="settings-embed-slot" id="settingsMusicSlot"></div>
+    </div>
+
+    <button type="button" class="menu-btn menu-btn-danger" id="menuBtnLimparDados">
+      <span class="menu-btn-icon">🗑</span> Limpar Dados
+    </button>
+    <button type="button" class="menu-btn" id="menuBtnVoltarSettings">
+      <span class="menu-btn-icon">⬅</span> Voltar
+    </button>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   MENU INICIAL — SCRIPT ADICIONADO
+   Módulo independente. Não toca nas funções internas do jogo,
+   apenas orquestra visibilidade das telas e reaproveita os
+   elementos existentes (tema, música, leilão) via seus próprios IDs.
+   ========================================================= */
+(function(){
+  "use strict";
+
+  // ---------- Referências das telas do menu ----------
+  const screens = {
+    main: document.getElementById("mainMenuScreen"),
+    play: document.getElementById("playMenuScreen"),
+    competitions: document.getElementById("competitionsScreen"),
+    stats: document.getElementById("statsScreen"),
+    settings: document.getElementById("settingsScreen")
+  };
+
+  const backToMenuBtn = document.getElementById("backToMenuBtn");
+  const continueToMatchBtn = document.getElementById("continueToMatchBtn");
+
+  // ---------- Controle de telas ----------
+  function hideAllMenuScreens(){
+    Object.values(screens).forEach(s => s.classList.remove("open"));
+  }
+
+  function showMenuScreen(name){
+    hideAllMenuScreens();
+    document.body.classList.add("menu-active");
+    backToMenuBtn.classList.remove("show");
+    continueToMatchBtn.classList.remove("show");
+    if (screens[name]) screens[name].classList.add("open");
+  }
+
+  // Abre o jogo existente (campo/formação/banco) reaproveitado em dois contextos
+  // diferentes, conforme a origem da navegação:
+  //  - "elenco": administração do elenco (Menu → Meu Elenco) — SEM botão de continuar.
+  //  - "partida": escalação da partida (Menu → Jogar → Modo → Escalação) — COM botão de continuar.
+  function openGameField(context){
+    hideAllMenuScreens();
+    document.body.classList.remove("menu-active");
+    backToMenuBtn.classList.add("show");
+    if (context === "partida"){
+      continueToMatchBtn.classList.add("show");
+    } else {
+      continueToMatchBtn.classList.remove("show");
+    }
+  }
+
+  // Meu Elenco: só administração (formação, titulares, banco, salvar alterações)
+  function openGameAsElenco(){
+    openGameField("elenco");
+  }
+
+  // Escalação da partida: mesmo campo, mas com o botão "Continuar para Partida" visível
+  function openGameForMatch(){
+    openGameField("partida");
+  }
+
+  // Volta para o menu principal a partir do jogo
+  function backToMainMenuFromGame(){
+    showMenuScreen("main");
+  }
+
+  // ---------- Estatísticas (placeholder com valores em zero) ----------
+  const STATS_KEY = "draft26_stats_v1";
+  function loadStats(){
+    try{
+      const raw = localStorage.getItem(STATS_KEY);
+      if (raw) return JSON.parse(raw);
+    }catch(e){}
+    return {
+      partidas: 0, vitorias: 0, empates: 0, derrotas: 0,
+      gols: 0, assistencias: 0, melhorJogador: "—"
+    };
+  }
+  function renderStats(){
+    const s = loadStats();
+    document.getElementById("statPartidas").textContent = s.partidas;
+    document.getElementById("statVitorias").textContent = s.vitorias;
+    document.getElementById("statEmpates").textContent = s.empates;
+    document.getElementById("statDerrotas").textContent = s.derrotas;
+    document.getElementById("statGols").textContent = s.gols;
+    document.getElementById("statAssistencias").textContent = s.assistencias;
+    document.getElementById("statMelhorJogador").textContent = s.melhorJogador || "—";
+  }
+
+  // ---------- Configurações: reaproveita tema e música existentes ----------
+  // Move (não recria) os controles reais de tema/música para dentro da
+  // tela de Configurações, preservando IDs e listeners já existentes.
+  function embedExistingControlsIntoSettings(){
+    const themeSelect = document.getElementById("themeSelect");
+    const musicPickBtn = document.getElementById("musicPickBtn");
+    const musicPlayBtn = document.getElementById("musicPlayBtn");
+
+    const themeSlot = document.getElementById("settingsThemeSlot");
+    const musicSlot = document.getElementById("settingsMusicSlot");
+
+    if (themeSelect && themeSlot && !themeSlot.contains(themeSelect)){
+      themeSlot.appendChild(themeSelect);
+    }
+    if (musicPickBtn && musicSlot && !musicSlot.contains(musicPickBtn)){
+      musicSlot.appendChild(musicPickBtn);
+    }
+    if (musicPlayBtn && musicSlot && !musicSlot.contains(musicPlayBtn)){
+      musicSlot.appendChild(musicPlayBtn);
+    }
+  }
+
+  // ---------- Volume ----------
+  const VOLUME_KEY = "draft26_volume_v1";
+  function applyVolumeToAudios(vol){
+    document.querySelectorAll("audio").forEach(a => { a.volume = vol; });
+  }
+  function initVolumeControl(){
+    const range = document.getElementById("menuVolumeRange");
+    let saved = 80;
+    try{
+      const raw = localStorage.getItem(VOLUME_KEY);
+      if (raw !== null) saved = Number(raw);
+    }catch(e){}
+    range.value = saved;
+    applyVolumeToAudios(saved / 100);
+
+    range.addEventListener("input", () => {
+      const v = Number(range.value);
+      applyVolumeToAudios(v / 100);
+      try{ localStorage.setItem(VOLUME_KEY, String(v)); }catch(e){}
+    });
+
+    // Garante que qualquer <audio> criado dinamicamente pelo jogo
+    // (ex.: música de fundo) também respeite o volume salvo.
+    setInterval(() => {
+      const raw = localStorage.getItem(VOLUME_KEY);
+      const v = raw !== null ? Number(raw) / 100 : 0.8;
+      applyVolumeToAudios(v);
+    }, 2000);
+  }
+
+  // ---------- Limpar dados ----------
+  function clearAllData(){
+    const ok = window.confirm("Isso vai apagar TODOS os dados salvos (jogadores, formações, leilões, músicas, estatísticas). Deseja continuar?");
+    if (!ok) return;
+    try{ localStorage.clear(); }catch(e){}
+    window.location.reload();
+  }
+
+  // ---------- Ligações de eventos do menu ----------
+  document.getElementById("menuBtnJogar").addEventListener("click", () => showMenuScreen("play"));
+  document.getElementById("menuBtnElenco").addEventListener("click", openGameAsElenco);
+  document.getElementById("menuBtnMercado").addEventListener("click", () => {
+    // Abre o leilão já existente sem recriar nada.
+    openGameAsElenco();
+    const openAuctionBtn = document.getElementById("openAuctionBtn");
+    if (openAuctionBtn) openAuctionBtn.click();
+  });
+  document.getElementById("menuBtnCompeticoes").addEventListener("click", () => showMenuScreen("competitions"));
+  document.getElementById("menuBtnEstatisticas").addEventListener("click", () => {
+    renderStats();
+    showMenuScreen("stats");
+  });
+  document.getElementById("menuBtnConfiguracoes").addEventListener("click", () => {
+    embedExistingControlsIntoSettings();
+    showMenuScreen("settings");
+  });
+
+  document.getElementById("menuBtnPartidaRapida").addEventListener("click", openGameForMatch);
+  document.getElementById("menuBtnVoltarJogar").addEventListener("click", () => showMenuScreen("main"));
+  document.getElementById("menuBtnVoltarCompeticoes").addEventListener("click", () => showMenuScreen("main"));
+  document.getElementById("menuBtnVoltarStats").addEventListener("click", () => showMenuScreen("main"));
+  document.getElementById("menuBtnVoltarSettings").addEventListener("click", () => showMenuScreen("main"));
+  document.getElementById("menuBtnLimparDados").addEventListener("click", clearAllData);
+
+  backToMenuBtn.addEventListener("click", () => {
+    if (window.MatchEngine) window.MatchEngine.stop();
+    backToMainMenuFromGame();
+  });
+  continueToMatchBtn.addEventListener("click", () => {
+    if (window.MatchEngine) window.MatchEngine.start();
+  });
+
+  // ---------- Inicialização ----------
+  function initMenu(){
+    initVolumeControl();
+    showMenuScreen("main");
+  }
+
+  if (document.readyState === "interactive" || document.readyState === "complete"){
+    initMenu();
+  } else {
+    document.addEventListener("DOMContentLoaded", initMenu);
+  }
+})();
+</script>
+
+<script>
+/* =========================================================
+   MOTOR DE PARTIDA (IA) — MÓDULO ADICIONADO
+   Reutiliza o #field e as cartas (.card) já existentes.
+   Não recria campo, escalação, formações ou cartas — apenas
+   lê as posições atuais em campo e anima os elementos.
+   ========================================================= */
+(function(){
+  "use strict";
+
+  const field = document.getElementById("field");
+  const fieldWrapper = document.getElementById("field-wrapper");
+  const narrationEl = document.getElementById("matchNarration");
+  const goalOverlay = document.getElementById("goalOverlay");
+  const goalScorerName = document.getElementById("goalScorerName");
+  const goalMinuteLabel = document.getElementById("goalMinuteLabel");
+  const confettiLayer = document.getElementById("confettiLayer");
+  const scoreHomeEl = document.getElementById("msScoreHome");
+  const scoreAwayEl = document.getElementById("msScoreAway");
+  const clockEl = document.getElementById("msClock");
+
+  const AI_NAMES = ["Silva","Fernandes","Costa","Souza","Alves","Pereira","Rocha","Martins","Barros","Lima","Nunes"];
+
+  // ---------- Configuração geral ----------
+  const DECISION_MS       = 900;    // intervalo das decisões táticas (passe/chute/marcação)
+  const MATCH_DURATION_MS = 30000;  // duração real da partida: 30 segundos
+  const GOAL_PAUSE_MS     = 3200;   // pausa na comemoração de gol
+  const MIN_DIST          = 6.4;    // distância mínima entre cartas (% do campo) — evita sobreposição
+  const SEPARATION_FORCE  = 0.85;
+  const MAX_SPEED         = 3.4;    // velocidade máxima (% de campo por "frame normalizado")
+  const ACCEL             = 0.09;   // suavidade de aceleração/desaceleração
+  const DAMPING           = 0.18;
+  const BOB_AMPLITUDE     = 2.1;    // px de balanço vertical ao correr
+  const TILT_MAX_DEG      = 9;      // inclinação máxima conforme a direção
+  const TARGET_SMOOTH     = 0.5;    // suaviza a troca de alvo tático (evita mudanças bruscas de direção)
+  const PASS_RADIUS_PX    = 280;    // raio de busca por companheiros livres (200–300px)
+
+  let ball = null;
+  let players = [];             // { el, side, name, x, y, vx, vy, targetX, targetY, homeX, homeY, isGK, role, state }
+  let possession = null;
+  let running = false;
+  let decisionTimer = null;
+  let clockTimer = null;
+  let rafId = null;
+  let matchEndTimer = null;
+  let minute = 0;
+  let lastFrameTime = 0;
+  let score = { home: 0, away: 0 };
+
+  // ---------- Utilidades ----------
+  function rand(min, max){ return Math.random() * (max - min) + min; }
+  function clampPct(v){ return Math.max(3, Math.min(97, v)); }
+  function dist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
+  function lerp(a, b, t){ return a + (b - a) * t; }
+  function narrate(msg){ if (narrationEl) narrationEl.textContent = msg; }
+
+  function pxToPct(px){
+    const rect = field.getBoundingClientRect();
+    const ref = rect.width || 300;
+    return (px / ref) * 100;
+  }
+
+  function ensurePossessionGlow(el){
+    if (!el.querySelector(".card-possession-glow")){
+      const glow = document.createElement("div");
+      glow.className = "card-possession-glow";
+      el.appendChild(glow);
+    }
+  }
+
+  // Injeta apenas as novas regras de animação, sem alterar nenhum CSS existente.
+  function injectMotionStyles(){
+    if (document.getElementById("matchMotionStyles")) return;
+    const style = document.createElement("style");
+    style.id = "matchMotionStyles";
+    style.textContent = `
+      /* Movimento das cartas agora é controlado quadro a quadro via JS —
+         desativa a transição de left/top que causava o "deslize" e a
+         sobreposição entre cartas, mantendo só a transição do brilho. */
+      body.match-mode #field .card{
+        transition: box-shadow 0.2s ease !important;
+      }
+      .card.ms-prep{ animation: msPrep 0.16s ease-in-out both; }
+      @keyframes msPrep{
+        0%{ transform: translate(-50%,-50%) scale(1) rotate(0deg); }
+        100%{ transform: translate(-50%,-50%) scale(0.93) rotate(-3deg); }
+      }
+      .card.ms-feint{ animation: msFeint 0.32s ease-in-out; }
+      @keyframes msFeint{
+        0%{ margin-left:0; }
+        30%{ margin-left: var(--feint-dir, -7px); }
+        65%{ margin-left: calc(var(--feint-dir, -7px) * -1); }
+        100%{ margin-left:0; }
+      }
+      .card.ms-passing{ animation: msPassPrep 0.26s ease-out; }
+      @keyframes msPassPrep{
+        0%{ filter:none; transform: translate(-50%,-50%) scale(1); }
+        50%{ filter:brightness(1.15); transform: translate(-50%,-50%) scale(1.08); }
+        100%{ filter:none; transform: translate(-50%,-50%) scale(1); }
+      }
+      .card.ms-receiving{
+        animation: msReceive 0.5s ease-out;
+        box-shadow: 0 0 0 3px rgba(255,255,255,0.9), 0 0 18px 6px rgba(120,200,255,0.8) !important;
+        z-index: 21;
+      }
+      @keyframes msReceive{
+        0%{ transform: translate(-50%,-50%) scale(1); }
+        35%{ transform: translate(-50%,-50%) scale(1.24); }
+        100%{ transform: translate(-50%,-50%) scale(1); }
+      }
+      .card.ms-kicking{ z-index: 22; animation: msKick 0.42s ease-out; }
+      @keyframes msKick{
+        0%{ transform: translate(-50%,-50%) scale(1) rotate(0deg); }
+        30%{ transform: translate(-50%,-50%) scale(1.38) rotate(var(--kick-tilt, 8deg)); }
+        100%{ transform: translate(-50%,-50%) scale(1) rotate(0deg); }
+      }
+      .ms-impact{
+        position:absolute; width:8px; height:8px; border-radius:50%;
+        background: radial-gradient(circle, rgba(255,255,255,0.95), rgba(255,255,255,0));
+        transform: translate(-50%,-50%);
+        pointer-events:none; z-index:23;
+        animation: msImpact 0.4s ease-out forwards;
+      }
+      @keyframes msImpact{
+        0%{ opacity:1; width:8px; height:8px; }
+        100%{ opacity:0; width:48px; height:48px; }
+      }
+      .card.ms-diving{ animation: msDive 0.5s ease-out; z-index: 22; }
+      @keyframes msDive{
+        0%{ transform: translate(-50%,-50%) rotate(0deg); }
+        40%{ transform: translate(-50%,-50%) rotate(var(--dive-dir, -26deg)) scale(1.08); }
+        100%{ transform: translate(-50%,-50%) rotate(0deg); }
+      }
+      /* Bola: desaceleração suave em vez de parar de forma abrupta */
+      #matchBall{ transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1) !important; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // ---------- Leitura da escalação existente (não recria nada) ----------
+  function readHomeStartersFromField(){
+    const cards = Array.from(field.querySelectorAll(".card"));
+    return cards.map(card => {
+      const nameEl = card.querySelector(".name");
+      const left = parseFloat(card.style.left);
+      const top = parseFloat(card.style.top);
+      return {
+        el: card,
+        side: "home",
+        name: nameEl ? nameEl.textContent : "Jogador",
+        x: isNaN(left) ? 50 : left,
+        y: isNaN(top) ? 50 : top,
+        isGK: card.classList.contains("locked")
+      };
+    });
+  }
+
+  // ---------- Time da IA (mesma classe .card, gradiente diferente) ----------
+  function buildAiTeam(homePlayers){
+    const shuffledNames = AI_NAMES.slice().sort(() => Math.random() - 0.5);
+    return homePlayers.map((hp, i) => {
+      const card = document.createElement("div");
+      card.className = "card ai-card" + (hp.isGK ? " locked" : "");
+      card.dataset.aiPlayer = "1";
+      const aiName = (hp.isGK ? "Goleiro " : "") + (shuffledNames[i] || ("IA " + (i + 1)));
+      card.innerHTML = `
+        <div class="corner"><div class="ovr" data-role="ovr">--</div></div>
+        <div class="pos" data-role="pos"></div>
+        <div class="name">${aiName}</div>
+      `;
+      // espelha a posição do jogador correspondente do time da casa
+      const x = hp.x;
+      const y = clampPct(100 - hp.y);
+      card.style.left = x + "%";
+      card.style.top = y + "%";
+      field.appendChild(card);
+      return {
+        el: card,
+        side: "away",
+        name: aiName,
+        x, y,
+        homeX: x, homeY: y,
+        isGK: hp.isGK
+      };
+    });
+  }
+
+  // Time da casa ataca para topo (y menor); IA ataca para baixo (y maior)
+  function attackDir(side){ return side === "home" ? -1 : 1; }
+  function opponentGoal(side){ return side === "home" ? { x: 50, y: 4 } : { x: 50, y: 96 }; }
+  function ownGoal(side){ return side === "home" ? { x: 50, y: 96 } : { x: 50, y: 4 }; }
+
+  function teammatesOf(side){ return players.filter(p => p.side === side); }
+  function opponentsOf(side){ return players.filter(p => p.side !== side); }
+
+  // ---------- Função tática de cada jogador, inferida pela posição de origem ----------
+  function classifyRole(p){
+    if (p.isGK) return "goleiro";
+    const og = ownGoal(p.side);
+    const progression = Math.min(1, Math.abs(p.homeY - og.y) / 92); // 0 = perto do próprio gol, 1 = perto do gol adversário
+    if (progression < 0.28) return "zagueiro";
+    if (progression < 0.5) return "volante";
+    if (progression < 0.75) return "meia";
+    return "atacante";
+  }
+
+  // Probabilidade de passe curto/médio/longo por função — lançamentos raros
+  function roleWeights(role){
+    switch (role){
+      case "zagueiro": return { short: 0.70, medium: 0.20, long: 0.10 };
+      case "volante":  return { short: 0.75, medium: 0.20, long: 0.05 };
+      case "meia":     return { short: 0.45, medium: 0.40, long: 0.15 };
+      case "atacante": return { short: 0.55, medium: 0.35, long: 0.10 };
+      default:         return { short: 0.65, medium: 0.25, long: 0.10 };
+    }
+  }
+
+  function classifyDistance(d){
+    if (d <= 14) return "short";
+    if (d <= 30) return "medium";
+    return "long";
+  }
+
+  function initMotionState(p){
+    p.vx = 0; p.vy = 0;
+    p.targetX = p.x; p.targetY = p.y;
+    p.bobPhase = Math.random() * Math.PI * 2;
+    p.state = "idle"; // idle | running | preparing | feinting | passing | receiving | kicking | diving
+    p.role = classifyRole(p);
+  }
+
+  function applyPlayerVisual(p, now){
+    p.el.style.left = clampPct(p.x) + "%";
+    p.el.style.top = clampPct(p.y) + "%";
+
+    // Estados de ação curta (preparação, finta, passe, chute, defesa) usam
+    // animação CSS própria; não sobrescrever o transform enquanto ela ocorre.
+    if (p.state !== "idle" && p.state !== "running") return;
+
+    const speed = Math.hypot(p.vx, p.vy);
+    const moving = speed > 0.05;
+    p.el.classList.toggle("ms-running", moving);
+
+    const tilt = moving ? Math.max(-1, Math.min(1, p.vx / 1.4)) * TILT_MAX_DEG : 0;
+    const bob = moving ? Math.sin(now / 120 + p.bobPhase) * BOB_AMPLITUDE : 0;
+    p.el.style.transform = `translate(-50%,-50%) translateY(${bob.toFixed(2)}px) rotate(${tilt.toFixed(2)}deg)`;
+  }
+
+  function setPossession(p){
+    if (possession && possession.el) possession.el.classList.remove("has-ball");
+    possession = p;
+    if (p){
+      p.el.classList.add("has-ball");
+      ensurePossessionGlow(p.el);
+    }
+  }
+
+  // Duração da bola proporcional à distância percorrida, com desaceleração
+  // suave (cubic-bezier ease-out) em vez de parar instantaneamente.
+  function moveBallTo(x, y, duration){
+    const curX = parseFloat(ball.style.left);
+    const curY = parseFloat(ball.style.top);
+    const travelled = (!isNaN(curX) && !isNaN(curY)) ? Math.hypot(x - curX, y - curY) : 0;
+    const dur = duration != null ? duration : Math.max(0.3, Math.min(1.1, travelled / 42));
+    ball.style.transitionDuration = dur + "s";
+    ball.style.left = clampPct(x) + "%";
+    ball.style.top = clampPct(y) + "%";
+    return dur;
+  }
+
+  // ---------- Separação entre jogadores (evita sobreposição de cartas) ----------
+  function applySeparation(){
+    for (let i = 0; i < players.length; i++){
+      const a = players[i];
+      if (a.state !== "idle" && a.state !== "running") continue;
+      let pushX = 0, pushY = 0;
+      for (let j = 0; j < players.length; j++){
+        if (i === j) continue;
+        const b = players[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d = Math.hypot(dx, dy) || 0.001;
+        if (d < MIN_DIST){
+          const overlap = (MIN_DIST - d) / MIN_DIST;
+          pushX += (dx / d) * overlap;
+          pushY += (dy / d) * overlap;
+        }
+      }
+      a.vx += pushX * SEPARATION_FORCE;
+      a.vy += pushY * SEPARATION_FORCE;
+    }
+  }
+
+  // ---------- Define para onde cada jogador quer ir (decisão tática) ----------
+  function assignMovementTargets(){
+    players.forEach(p => {
+      if (p.state !== "idle" && p.state !== "running") return;
+
+      let newX = p.targetX, newY = p.targetY;
+
+      if (p.isGK){
+        // goleiro cobre a linha, acompanhando lateralmente a posição da bola,
+        // e sai um pouco do gol quando o jogo se aproxima da sua área
+        const g = ownGoal(p.side);
+        let gx = g.x;
+        if (ball){
+          const ballX = parseFloat(ball.style.left);
+          if (!isNaN(ballX)) gx = g.x + (ballX - 50) * 0.32;
+        }
+        const ballNearGoal = possession && dist(possession, g) < 22;
+        newX = gx + rand(-3, 3);
+        newY = ballNearGoal ? g.y + attackDir(p.side) * rand(2, 5) : g.y + rand(-2, 2);
+        p.targetX = newX; p.targetY = newY;
+        return;
+      }
+
+      if (p === possession){
+        // quem tem a bola: pequeno avanço, será refinado em stepPossessionAction
+        const dir = attackDir(p.side);
+        newX = p.x + rand(-2.5, 2.5);
+        newY = p.y + dir * rand(1.5, 3.2);
+        p.targetX = newX; p.targetY = newY;
+        return;
+      }
+
+      if (possession && possession.side === p.side){
+        // time com a posse: procura espaço livre à frente, longe dos companheiros
+        const dir = attackDir(p.side);
+        let bestX = p.x + rand(-6, 6);
+        let bestY = p.y + dir * rand(1.5, 3.8);
+        const mate = teammatesOf(p.side).find(m => m !== p && Math.hypot(m.x - bestX, m.y - bestY) < MIN_DIST);
+        if (mate) bestX += rand(-8, 8);
+        newX = bestX; newY = bestY;
+      } else if (possession){
+        // time sem a posse: marca o adversário mais próximo mantendo distância pequena
+        const opp = opponentsOf(p.side).filter(o => !o.isGK).reduce((closest, o) =>
+          (!closest || dist(p, o) < dist(p, closest)) ? o : closest, null);
+        if (opp){
+          const markDist = 5.5;
+          const dx = p.x - opp.x, dy = p.y - opp.y;
+          const d = Math.hypot(dx, dy) || 0.001;
+          newX = opp.x + (dx / d) * markDist + rand(-1.2, 1.2);
+          newY = opp.y + (dy / d) * markDist + rand(-1.2, 1.2);
+        }
+      } else {
+        newX = p.homeX + rand(-4, 4);
+        newY = p.homeY + rand(-4, 4);
+      }
+
+      // suaviza a troca de alvo tático em vez de virar de direção instantaneamente
+      p.targetX = lerp(p.targetX, newX, TARGET_SMOOTH);
+      p.targetY = lerp(p.targetY, newY, TARGET_SMOOTH);
+    });
+  }
+
+  // ---------- Loop de animação suave (60fps): posição, inclinação, balanço, separação ----------
+  function animationLoop(ts){
+    if (!running){ rafId = null; return; }
+    if (!lastFrameTime) lastFrameTime = ts;
+    const dt = Math.min(3, (ts - lastFrameTime) / 16.6);
+    lastFrameTime = ts;
+
+    players.forEach(p => {
+      if (p.state !== "idle" && p.state !== "running") return;
+      const dx = p.targetX - p.x, dy = p.targetY - p.y;
+      p.vx += (dx * ACCEL - p.vx * DAMPING) * dt;
+      p.vy += (dy * ACCEL - p.vy * DAMPING) * dt;
+      const speed = Math.hypot(p.vx, p.vy);
+      if (speed > MAX_SPEED){
+        p.vx = (p.vx / speed) * MAX_SPEED;
+        p.vy = (p.vy / speed) * MAX_SPEED;
+      }
+    });
+
+    applySeparation();
+
+    players.forEach(p => {
+      if (p.state !== "idle" && p.state !== "running"){
+        applyPlayerVisual(p, ts);
+        return;
+      }
+      p.x = clampPct(p.x + p.vx * dt * 0.3);
+      p.y = clampPct(p.y + p.vy * dt * 0.3);
+      p.state = Math.hypot(p.vx, p.vy) > 0.05 ? "running" : "idle";
+      applyPlayerVisual(p, ts);
+    });
+
+    rafId = requestAnimationFrame(animationLoop);
+  }
+
+  // ---------- Drible: pequena finta antes de encarar um defensor próximo ----------
+  function maybeFeint(holder, cb){
+    const nearDefender = opponentsOf(holder.side).find(o => !o.isGK && dist(o, holder) < 9);
+    if (nearDefender && Math.random() < 0.5){
+      const feintDir = Math.random() < 0.5 ? -1 : 1;
+      holder.state = "feinting";
+      holder.el.style.setProperty("--feint-dir", (feintDir * 7) + "px");
+      holder.el.classList.add("ms-feint");
+      narrate(`${holder.name} tenta o drible!`);
+      setTimeout(() => {
+        if (!running) return;
+        holder.el.classList.remove("ms-feint");
+        holder.state = "idle";
+        // após a finta, avança para o lado oposto, como se tivesse passado pelo defensor
+        holder.x = clampPct(holder.x + feintDir * -3.5);
+        holder.targetX = holder.x;
+        cb();
+      }, 320);
+      return true;
+    }
+    return false;
+  }
+
+  // ---------- Conta adversários no caminho entre dois pontos (evita passes atravessando vários marcadores) ----------
+  function countBlockers(a, b){
+    const opps = opponentsOf(a.side).filter(o => !o.isGK);
+    const abx = b.x - a.x, aby = b.y - a.y;
+    const lenSq = (abx * abx + aby * aby) || 0.0001;
+    let count = 0;
+    opps.forEach(o => {
+      const t = ((o.x - a.x) * abx + (o.y - a.y) * aby) / lenSq;
+      if (t > 0.12 && t < 0.88){
+        const projX = a.x + abx * t, projY = a.y + aby * t;
+        const perp = Math.hypot(o.x - projX, o.y - projY);
+        if (perp < 4.5) count++;
+      }
+    });
+    return count;
+  }
+
+  // ---------- Busca companheiros livres dentro do raio (200–300px) ----------
+  function findPassOptions(holder){
+    const maxRadius = pxToPct(PASS_RADIUS_PX);
+    return teammatesOf(holder.side)
+      .filter(p => p !== holder && !p.isGK)
+      .map(p => ({ player: p, d: dist(holder, p), blockers: countBlockers(holder, p), category: classifyDistance(dist(holder, p)) }))
+      .filter(o => o.d <= maxRadius);
+  }
+
+  // Contra-ataque claro: poucos adversários já recuados na defesa
+  function hasCounterAttackOpportunity(holder){
+    const oppBack = opponentsOf(holder.side).filter(o => !o.isGK).filter(o => {
+      return attackDir(holder.side) < 0 ? o.y < 50 : o.y > 50;
+    }).length;
+    return oppBack <= 1;
+  }
+
+  // ---------- Ação do jogador com a bola: driblar, passar ou chutar ----------
+  function stepPossessionAction(){
+    if (!possession || !running) return;
+    const holder = possession;
+    const dir = attackDir(holder.side);
+    const goal = opponentGoal(holder.side);
+    const distToGoal = dist(holder, goal);
+
+    const proceed = () => {
+      if (!running) return;
+      holder.targetX = holder.x + rand(-2.5, 2.5);
+      holder.targetY = holder.y + dir * rand(2, 4.2);
+      moveBallTo(holder.x, holder.y + dir * -3, 0.35);
+
+      // perto da área: prioriza a finalização
+      const shotRange = holder.role === "atacante" ? 23 : 20;
+      if (distToGoal < shotRange){
+        attemptShot(holder);
+        return;
+      }
+
+      // adversário muito próximo pode desarmar antes de qualquer decisão
+      const nearOpp = opponentsOf(holder.side).find(o => !o.isGK && dist(o, holder) < 7);
+      if (nearOpp){
+        const stealChance = 0.14 + Math.max(0, (7 - dist(nearOpp, holder)) / 7) * 0.18;
+        if (Math.random() < stealChance){
+          narrate(`${nearOpp.name} recupera a bola.`);
+          setPossession(nearOpp);
+          return;
+        }
+      }
+
+      // chance de segurar a bola e avançar em vez de passar (varia por função)
+      const holdChance = holder.role === "zagueiro" ? 0.05
+                        : holder.role === "volante"  ? 0.10
+                        : holder.role === "meia"     ? 0.18
+                        : 0.16; // atacante
+      if (Math.random() < holdChance){
+        narrate(`${holder.name} avança com a bola.`);
+        return;
+      }
+
+      // ---------- Sistema inteligente de passes ----------
+      const options = findPassOptions(holder);
+      const weights = roleWeights(holder.role);
+      const counterAttack = hasCounterAttackOpportunity(holder);
+
+      if (!options.length){
+        // sem companheiros dentro do raio: só arrisca lançamento se houver
+        // contra-ataque claro; caso contrário segura a posse com cautela
+        if (counterAttack){
+          const mates = teammatesOf(holder.side).filter(p => p !== holder && !p.isGK);
+          if (mates.length){
+            mates.sort((a, b) => dist(a, opponentGoal(holder.side)) - dist(b, opponentGoal(holder.side)));
+            attemptPass(holder, mates[0], "long");
+            return;
+          }
+        }
+        narrate(`${holder.name} segura a posse.`);
+        return;
+      }
+
+      const grouped = {
+        short: options.filter(o => o.category === "short" && o.blockers === 0),
+        medium: options.filter(o => o.category === "medium" && o.blockers <= 1),
+        long: options.filter(o => o.category === "long" && o.blockers === 0)
+      };
+      if (!counterAttack) grouped.long = []; // lançamento só em oportunidade clara de contra-ataque
+
+      const roll = Math.random();
+      let category;
+      if (roll < weights.short) category = "short";
+      else if (roll < weights.short + weights.medium) category = "medium";
+      else category = "long";
+
+      let pool = grouped[category];
+      if (!pool || !pool.length) pool = grouped.short.length ? grouped.short : (grouped.medium.length ? grouped.medium : grouped.long);
+
+      if (pool && pool.length){
+        pool.sort((a, b) => (a.blockers - b.blockers) || (a.d - b.d));
+        attemptPass(holder, pool[0].player, pool[0].category);
+        return;
+      }
+
+      narrate(`${holder.name} domina.`);
+    };
+
+    if (!maybeFeint(holder, proceed)) proceed();
+  }
+
+  // ---------- Passe: preparação, giro leve em direção ao alvo e recepção do companheiro ----------
+  function attemptPass(holder, receiver, category){
+    category = category || classifyDistance(dist(holder, receiver));
+    const prepMs = category === "long" ? 220 : (category === "medium" ? 140 : 80);
+
+    holder.state = "preparing";
+    holder.el.classList.add("ms-prep");
+
+    setTimeout(() => {
+      if (!running) return;
+      holder.el.classList.remove("ms-prep");
+      holder.state = "passing";
+      holder.el.classList.add("ms-passing");
+      narrate(category === "long" ? `Lançamento para ${receiver.name}.` : `Passe para ${receiver.name}.`);
+
+      const passDuration = moveBallTo(receiver.x, receiver.y);
+
+      setTimeout(() => {
+        if (!running) return;
+        holder.el.classList.remove("ms-passing");
+        holder.state = "idle";
+      }, 260);
+
+      // defensor próximo do receptor pode interceptar o passe
+      const interceptor = opponentsOf(holder.side).find(o => !o.isGK && dist(o, receiver) < 6);
+      const intercepted = !!interceptor && Math.random() < (category === "long" ? 0.4 : 0.22);
+
+      setTimeout(() => {
+        if (!running) return;
+        if (intercepted){
+          narrate(`${interceptor.name} intercepta o passe!`);
+          setPossession(interceptor);
+          return;
+        }
+        receiver.state = "receiving";
+        receiver.el.classList.add("ms-receiving");
+        setPossession(receiver);
+        narrate(`${receiver.name} recebe.`);
+        setTimeout(() => {
+          if (!running) return;
+          receiver.el.classList.remove("ms-receiving");
+          receiver.state = "idle";
+        }, 500);
+      }, passDuration * 1000 + 70);
+    }, prepMs);
+  }
+
+  // ---------- Chute: preparação, aumento rápido, inclinação para frente e impacto ----------
+  function attemptShot(holder){
+    holder.state = "preparing";
+    holder.el.classList.add("ms-prep");
+
+    setTimeout(() => {
+      if (!running) return;
+      holder.el.classList.remove("ms-prep");
+      holder.state = "kicking";
+      holder.el.style.setProperty("--kick-tilt", (attackDir(holder.side) < 0 ? -8 : 8) + "deg");
+      holder.el.classList.add("ms-kicking");
+      narrate("Finalizou!");
+
+      const goal = opponentGoal(holder.side);
+      const gx = goal.x + rand(-8, 8);
+      const shotDist = dist(holder, goal);
+      const shotDuration = Math.max(0.18, Math.min(0.5, shotDist / 70));
+      moveBallTo(gx, goal.y, shotDuration);
+      spawnImpact(gx, goal.y);
+
+      setTimeout(() => {
+        if (!running) return;
+        holder.el.classList.remove("ms-kicking");
+        holder.state = "idle";
+
+        const gk = players.find(p => p.side !== holder.side && p.isGK);
+        const scored = gk ? Math.random() < 0.34 : Math.random() < 0.42;
+
+        if (gk && !scored){
+          gk.state = "diving";
+          gk.el.style.setProperty("--dive-dir", (gx < 50 ? "-26deg" : "26deg"));
+          gk.el.classList.add("ms-diving");
+          setTimeout(() => {
+            if (!running) return;
+            gk.el.classList.remove("ms-diving");
+            gk.state = "idle";
+          }, 500);
+        }
+
+        if (scored){
+          handleGoal(holder);
+        } else {
+          narrate("Defendeu o goleiro!");
+          setPossession(gk || opponentsOf(holder.side)[0]);
+        }
+      }, shotDuration * 1000 + 140);
+    }, 160);
+  }
+
+  function spawnImpact(x, y){
+    const impact = document.createElement("div");
+    impact.className = "ms-impact";
+    impact.style.left = clampPct(x) + "%";
+    impact.style.top = clampPct(y) + "%";
+    field.appendChild(impact);
+    setTimeout(() => { if (impact.parentNode) impact.parentNode.removeChild(impact); }, 420);
+  }
+
+  // ---------- Gol ----------
+  function handleGoal(scorer){
+    stopDecisionLoop();
+    if (scorer.side === "home") score.home++; else score.away++;
+    scoreHomeEl.textContent = score.home;
+    scoreAwayEl.textContent = score.away;
+
+    fieldWrapper.classList.add("shake");
+    setTimeout(() => fieldWrapper.classList.remove("shake"), 500);
+
+    goalScorerName.textContent = scorer.name.toUpperCase();
+    goalMinuteLabel.textContent = minute + "'";
+    goalOverlay.classList.add("show");
+    narrate("GOOOOOOL!");
+    spawnConfetti();
+
+    setTimeout(() => {
+      goalOverlay.classList.remove("show");
+      confettiLayer.innerHTML = "";
+      resetToKickoff(scorer.side === "home" ? "away" : "home");
+      if (running) startDecisionLoop();
+    }, GOAL_PAUSE_MS);
+  }
+
+  function spawnConfetti(){
+    const colors = ["#ffd54a", "#2f9e44", "#4a90ff", "#ff5a5a", "#fff"];
+    for (let i = 0; i < 40; i++){
+      const piece = document.createElement("div");
+      piece.className = "confetti-piece";
+      piece.style.left = rand(0, 100) + "%";
+      piece.style.background = colors[Math.floor(rand(0, colors.length))];
+      piece.style.animationDuration = rand(1.2, 2.4) + "s";
+      piece.style.animationDelay = rand(0, 0.4) + "s";
+      confettiLayer.appendChild(piece);
+    }
+  }
+
+  // ---------- Reposiciona todos no meio de campo (recomeço após gol / início) ----------
+  function resetToKickoff(startingSide){
+    players.forEach(p => {
+      p.x = p.homeX;
+      p.y = p.homeY;
+      p.targetX = p.x; p.targetY = p.y;
+      p.vx = 0; p.vy = 0;
+      p.state = "idle";
+      p.el.classList.remove("ms-feint", "ms-passing", "ms-receiving", "ms-kicking", "ms-diving", "ms-running", "ms-prep");
+      p.el.style.transform = "translate(-50%,-50%)";
+      applyPlayerVisual(p, performance.now());
+    });
+    moveBallTo(50, 50, 0.4);
+    const startTeam = teammatesOf(startingSide).filter(p => !p.isGK);
+    setPossession(startTeam[Math.floor(rand(0, startTeam.length))] || players[0]);
+    narrate("Bola rolando!");
+  }
+
+  // ---------- Loop de decisões táticas (passe/chute/marcação/movimento-alvo) ----------
+  function decisionTick(){
+    assignMovementTargets();
+    stepPossessionAction();
+  }
+  function startDecisionLoop(){
+    stopDecisionLoop();
+    decisionTimer = setInterval(decisionTick, DECISION_MS);
+  }
+  function stopDecisionLoop(){
+    if (decisionTimer){ clearInterval(decisionTimer); decisionTimer = null; }
+  }
+
+  function startClock(){
+    clockTimer = setInterval(() => {
+      minute++;
+      clockEl.textContent = minute + "'";
+    }, 3000);
+  }
+  function stopClock(){
+    if (clockTimer){ clearInterval(clockTimer); clockTimer = null; }
+  }
+
+  function endMatch(){
+    stopDecisionLoop();
+    narrate("Fim de jogo!");
+  }
+
+  // ---------- Ciclo público: iniciar / parar a partida ----------
+  function start(){
+    if (running) return;
+    running = true;
+    document.body.classList.add("match-mode");
+    injectMotionStyles();
+
+    const homePlayers = readHomeStartersFromField();
+    homePlayers.forEach(p => { p.homeX = p.x; p.homeY = p.y; ensurePossessionGlow(p.el); initMotionState(p); });
+    const aiPlayers = buildAiTeam(homePlayers);
+    aiPlayers.forEach(initMotionState);
+    players = homePlayers.concat(aiPlayers);
+
+    ball = document.getElementById("matchBall");
+    if (!ball){
+      ball = document.createElement("div");
+      ball.id = "matchBall";
+      field.appendChild(ball);
+    } else if (ball.parentNode !== field){
+      field.appendChild(ball);
+    }
+
+    minute = 0;
+    score = { home: 0, away: 0 };
+    scoreHomeEl.textContent = "0";
+    scoreAwayEl.textContent = "0";
+    clockEl.textContent = "0'";
+
+    resetToKickoff("home");
+    startDecisionLoop();
+    startClock();
+    lastFrameTime = 0;
+    rafId = requestAnimationFrame(animationLoop);
+    matchEndTimer = setTimeout(endMatch, MATCH_DURATION_MS);
+  }
+
+  function stop(){
+    running = false;
+    stopDecisionLoop();
+    stopClock();
+    if (rafId){ cancelAnimationFrame(rafId); rafId = null; }
+    if (matchEndTimer){ clearTimeout(matchEndTimer); matchEndTimer = null; }
+    document.body.classList.remove("match-mode");
+    goalOverlay.classList.remove("show");
+    confettiLayer.innerHTML = "";
+
+    // remove as cartas da IA e a bola; devolve as cartas do time da casa ao estado normal
+    players.forEach(p => {
+      p.el.classList.remove("has-ball", "kicking", "ms-running", "ms-feint", "ms-passing", "ms-receiving", "ms-kicking", "ms-diving", "ms-prep");
+      p.el.style.transform = "";
+      if (p.side === "away" && p.el.parentNode) p.el.parentNode.removeChild(p.el);
+    });
+    if (ball && ball.parentNode) ball.parentNode.removeChild(ball);
+    ball = null;
+    players = [];
+    possession = null;
+  }
+
+  window.MatchEngine = { start, stop };
+})();
+</script>
+
+</body>
+</html>
